@@ -1,0 +1,9 @@
+[package]
+name = "ras"
+version = "0.1.0"
+authors = ["Gabriela Alexandra Moldovan <gabi_250@live.com>"]
+edition = "2018"
+
+[dependencies]
+lazy_static = "1.4.0"
+target-lexicon = "0.11.1"
