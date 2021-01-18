@@ -1,5 +1,7 @@
-use super::instruction_encoding::*;
+use super::instruction_repr::INSTR_REPRS;
+use super::mnemonic::Mnemonic;
 use super::register::{Register, RegisterNum};
+use std::hash::Hash;
 
 pub struct Instruction {
     mnemonic: Mnemonic,
@@ -15,26 +17,14 @@ impl Instruction {
     }
 
     pub fn encode(self) -> Vec<u8> {
-        self.mnemonic.encode(self.operands)
+        (*INSTR_REPRS)
+            .get(&(self.mnemonic, self.operands.mode))
+            .unwrap()
+            .emit_instr(self.operands)
     }
 }
 
-pub enum Mnemonic {
-    Add,
-    Nop,
-    Xor,
-}
-
-impl Mnemonic {
-    fn encode(&self, operands: Operands) -> Vec<u8> {
-        match self {
-            Self::Add => emit_add(operands),
-            Self::Nop => emit_nop(operands),
-            Self::Xor => emit_xor(operands),
-        }
-    }
-}
-
+#[derive(Debug)]
 pub enum Operand {
     Register(Register),
     Immediate(Immediate),
@@ -50,6 +40,7 @@ impl Operand {
     }
 }
 
+#[derive(Debug)]
 pub enum Immediate {
     Immediate8(u8),
     Immediate16(u16),
@@ -100,11 +91,84 @@ impl From<Vec<Operand>> for Operands {
     }
 }
 
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub enum OperandMode {
     None,
-    IndirectRegister8,
-    Register64Register64,
-    REXIndirectRegister8,
+    /// AL, imm8
+    AlImm8,
+    /// AX, imm16
+    AxImm16,
+    /// EAX, imm32
+    EaxImm32,
+    /// RAX, imm32
+    RaxImm32,
+    /// r/m8, imm8
+    Rm8Imm8,
+    /// r/m8, imm8
+    RexRm8Imm8,
+    /// r/m16, imm16
+    Rm16Imm16,
+    /// r/m32, imm32
+    Rm32Imm32,
+    /// r/m64, imm32
+    Rm64Imm32,
+    /// r/m16, imm8
+    Rm16Imm8,
+    /// r/m32, imm8
+    Rm32Imm8,
+    /// r/m64, imm8
+    Rm64Imm8,
+    /// r/m8, r8
+    Rm8R8,
+    /// r/m8, r8
+    RexRm8R8,
+    /// r/m16, r16
+    Rm16R16,
+    /// r/m32, r32
+    Rm32R32,
+    /// r/m64, r64
+    Rm64R64,
+    /// r8, r/m8
+    R8Rm8,
+    /// r8, r/m8
+    RexR8Rm8,
+    /// r16, r/m16
+    R16Rm16,
+    /// r32, r/m32
+    R32Rm32,
+    /// r64, r/m64
+    R64Rm64,
+}
+
+impl From<(Option<&str>, Option<&str>, Option<&str>, Option<&str>)> for OperandMode {
+    fn from(
+        (operand1, operand2, operand3, operand4): (
+            Option<&str>,
+            Option<&str>,
+            Option<&str>,
+            Option<&str>,
+        ),
+    ) -> Self {
+        match (operand1, operand2, operand3, operand4) {
+            (None, None, None, None) => OperandMode::None,
+            (Some("AL"), Some("imm8"), None, None) => OperandMode::AlImm8,
+            (Some("AX"), Some("imm16"), None, None) => OperandMode::AxImm16,
+            (Some("EAX"), Some("imm32"), None, None) => OperandMode::EaxImm32,
+            (Some("RAX"), Some("imm32"), None, None) => OperandMode::RaxImm32,
+            (Some("r/m8"), Some("imm8"), None, None) => OperandMode::Rm8Imm8,
+            (Some("r/m16"), Some("imm16"), None, None) => OperandMode::Rm16Imm16,
+            (Some("r/m32"), Some("imm32"), None, None) => OperandMode::Rm32Imm32,
+            (Some("r/m64"), Some("imm32"), None, None) => OperandMode::Rm64Imm32,
+            (Some("r/m16"), Some("imm8"), None, None) => OperandMode::Rm16Imm8,
+            (Some("r/m32"), Some("imm8"), None, None) => OperandMode::Rm32Imm8,
+            (Some("r/m64"), Some("imm8"), None, None) => OperandMode::Rm64Imm8,
+            (Some("r/m8"), Some("r8"), None, None) => OperandMode::Rm8R8,
+            (Some("r/m16"), Some("r16"), None, None) => OperandMode::Rm16R16,
+            (Some("r/m32"), Some("r32"), None, None) => OperandMode::Rm32R32,
+            (Some("r/m64"), Some("r64"), None, None) => OperandMode::Rm64R64,
+            _ => OperandMode::None,
+        }
+    }
 }
 
 impl From<&Operand> for OperandMode {
@@ -119,7 +183,7 @@ impl From<(&Operand, &Operand)> for OperandMode {
             (Operand::Register(r1), Operand::Register(r2))
                 if r1.size() == 64 && r2.size() == 64 =>
             {
-                OperandMode::Register64Register64
+                OperandMode::Rm64R64
             }
             _ => unimplemented!(),
         }
@@ -140,12 +204,30 @@ pub(crate) enum Scale {
     Quad,
 }
 
-/// The value of the ModR/M byte.
-pub(crate) fn modrm(md: u8, rm: u8, reg: u8) -> u8 {
-    ((md & 0b11) << 6) + ((rm & 0b111) << 3) + reg
-}
+#[cfg(test)]
+pub mod tests {
+    use super::*;
+    use crate::x86::register::{RAX, RBX, RCX};
 
-/// The value of the SIB byte.
-pub(crate) fn sib(scale: Scale, index: Register, base: Register) -> u8 {
-    0
+    macro_rules! encode_instr {
+        ($opcode:ident, $($operands:expr),*) => {
+            Instruction::new(
+                Mnemonic::$opcode,
+                vec![$($operands,)*]
+            ).encode()
+        }
+    }
+
+    #[test]
+    fn emit_add() {
+        assert_eq!(
+            encode_instr!(ADD, Operand::Register(*RAX), Operand::Register(*RCX)),
+            vec![0x48, 0x01, 0xc8]
+        );
+
+        assert_eq!(
+            encode_instr!(ADD, Operand::Register(*RAX), Operand::Register(*RBX)),
+            vec![0x48, 0x01, 0xd8]
+        );
+    }
 }

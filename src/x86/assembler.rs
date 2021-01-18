@@ -15,6 +15,8 @@ impl Assembler {
     }
 
     pub fn assemble(self) -> Vec<u8> {
+        assert_eq!(self.mode, Mode::Long);
+
         let mut out = vec![];
 
         for instr in self.instrs {
