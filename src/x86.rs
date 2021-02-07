@@ -39,4 +39,11 @@ mod tests {
             Assembler::new_long(instrs).assemble()
         );
     }
+
+    #[test]
+    fn check_nop() {
+        let instrs = vec![Instruction::new(Mnemonic::NOP, vec![])];
+
+        assert_eq!(vec![0x90], Assembler::new_long(instrs).assemble());
+    }
 }

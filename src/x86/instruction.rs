@@ -1,6 +1,6 @@
 use super::instruction_repr::INSTR_REPRS;
 use super::mnemonic::Mnemonic;
-use super::register::{Register, RegisterNum};
+use super::register::Register;
 use std::hash::Hash;
 
 pub struct Instruction {
@@ -17,14 +17,17 @@ impl Instruction {
     }
 
     pub fn encode(self) -> Vec<u8> {
-        (*INSTR_REPRS)
-            .get(&(self.mnemonic, self.operands.mode))
+        let variants = (*INSTR_REPRS).get(&self.mnemonic).unwrap();
+
+        variants
+            .into_iter()
+            .find(|variant| variant.matches(&self.operands))
             .unwrap()
             .emit_instr(self.operands)
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Operand {
     Register(Register),
     Immediate(Immediate),
@@ -38,134 +41,72 @@ impl Operand {
             _ => 0,
         }
     }
+
+    pub fn size(&self) -> usize {
+        match self {
+            Operand::Register(reg) => reg.size(),
+            Operand::Immediate(imm) => imm.size(),
+            _ => unimplemented!("{:#x?}", self),
+        }
+    }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub enum Immediate {
     Immediate8(u8),
     Immediate16(u16),
     Immediate32(u32),
 }
 
-pub struct Operands {
-    pub(crate) operand1: Option<Operand>,
-    pub(crate) operand2: Option<Operand>,
-    pub(crate) operand3: Option<Operand>,
-    pub(crate) mode: OperandMode,
+impl Immediate {
+    pub fn size(&self) -> usize {
+        match self {
+            Self::Immediate8(_) => 8,
+            Self::Immediate16(_) => 16,
+            Self::Immediate32(_) => 32,
+        }
+    }
 }
 
+pub struct Operands(pub [Option<Operand>; 4]);
+
 impl From<Vec<Operand>> for Operands {
-    fn from(mut args: Vec<Operand>) -> Self {
-        let (operand1, operand2, operand3, mode) = match args.len() {
-            0 => (None, None, None, OperandMode::None),
-            1 => {
-                let operand1 = args.remove(0);
-                let mode = OperandMode::from(&operand1);
+    fn from(args: Vec<Operand>) -> Self {
+        assert!(args.len() <= 4);
 
-                (Some(operand1), None, None, mode)
-            }
-            2 => {
-                let operand2 = args.remove(1);
-                let operand1 = args.remove(0);
-                let mode = OperandMode::from((&operand1, &operand2));
+        let mut args = args.into_iter();
+        let operands: [Option<Operand>; 4] = [args.next(), args.next(), args.next(), args.next()];
 
-                (Some(operand1), Some(operand2), None, mode)
-            }
-            3 => {
-                let operand3 = args.remove(2);
-                let operand2 = args.remove(1);
-                let operand1 = args.remove(0);
-                let mode = OperandMode::from((&operand1, &operand2, &operand3));
-
-                (Some(operand1), Some(operand2), Some(operand3), mode)
-            }
-            _ => panic!("too many operands"),
-        };
-
-        Self {
-            operand1,
-            operand2,
-            operand3,
-            mode,
-        }
+        Self(operands)
     }
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub enum OperandMode {
+    Al(u8),
+    Imm(u8),
+    Rm(u8),
     None,
-    /// AL, imm8
-    AlImm8,
-    /// AX, imm16
-    AxImm16,
-    /// EAX, imm32
-    EaxImm32,
-    /// RAX, imm32
-    RaxImm32,
-    /// r/m8, imm8
-    Rm8Imm8,
-    /// r/m8, imm8
-    RexRm8Imm8,
-    /// r/m16, imm16
-    Rm16Imm16,
-    /// r/m32, imm32
-    Rm32Imm32,
-    /// r/m64, imm32
-    Rm64Imm32,
-    /// r/m16, imm8
-    Rm16Imm8,
-    /// r/m32, imm8
-    Rm32Imm8,
-    /// r/m64, imm8
-    Rm64Imm8,
-    /// r/m8, r8
-    Rm8R8,
-    /// r/m8, r8
-    RexRm8R8,
-    /// r/m16, r16
-    Rm16R16,
-    /// r/m32, r32
-    Rm32R32,
-    /// r/m64, r64
-    Rm64R64,
-    /// r8, r/m8
-    R8Rm8,
-    /// r8, r/m8
-    RexR8Rm8,
-    /// r16, r/m16
-    R16Rm16,
-    /// r32, r/m32
-    R32Rm32,
-    /// r64, r/m64
-    R64Rm64,
 }
 
-impl From<(Option<&str>, Option<&str>, Option<&str>, Option<&str>)> for OperandMode {
-    fn from(
-        (operand1, operand2, operand3, operand4): (
-            Option<&str>,
-            Option<&str>,
-            Option<&str>,
-            Option<&str>,
-        ),
-    ) -> Self {
-        match (operand1, operand2, operand3, operand4) {
-            (None, None, None, None) => OperandMode::None,
-            (Some("AL"), Some("imm8"), None, None) => OperandMode::AlImm8,
-            (Some("AX"), Some("imm16"), None, None) => OperandMode::AxImm16,
-            (Some("EAX"), Some("imm32"), None, None) => OperandMode::EaxImm32,
-            (Some("RAX"), Some("imm32"), None, None) => OperandMode::RaxImm32,
-            (Some("r/m8"), Some("imm8"), None, None) => OperandMode::Rm8Imm8,
-            (Some("r/m16"), Some("imm16"), None, None) => OperandMode::Rm16Imm16,
-            (Some("r/m32"), Some("imm32"), None, None) => OperandMode::Rm32Imm32,
-            (Some("r/m64"), Some("imm32"), None, None) => OperandMode::Rm64Imm32,
-            (Some("r/m16"), Some("imm8"), None, None) => OperandMode::Rm16Imm8,
-            (Some("r/m32"), Some("imm8"), None, None) => OperandMode::Rm32Imm8,
-            (Some("r/m64"), Some("imm8"), None, None) => OperandMode::Rm64Imm8,
-            (Some("r/m8"), Some("r8"), None, None) => OperandMode::Rm8R8,
-            (Some("r/m16"), Some("r16"), None, None) => OperandMode::Rm16R16,
-            (Some("r/m32"), Some("r32"), None, None) => OperandMode::Rm32R32,
-            (Some("r/m64"), Some("r64"), None, None) => OperandMode::Rm64R64,
+impl From<&str> for OperandMode {
+    fn from(op: &str) -> Self {
+        match op {
+            "AL" => OperandMode::Al(8),
+            "AX" => OperandMode::Al(16),
+            "EAX" => OperandMode::Al(32),
+            "RAX" => OperandMode::Al(64),
+            "r/m8" => OperandMode::Rm(8),
+            "r/m16" => OperandMode::Rm(16),
+            "r/m32" => OperandMode::Rm(32),
+            "r/m64" => OperandMode::Rm(64),
+            "r8" => OperandMode::Rm(8),
+            "r16" => OperandMode::Rm(16),
+            "r32" => OperandMode::Rm(32),
+            "r64" => OperandMode::Rm(64),
+            "imm8" => OperandMode::Imm(8),
+            "imm16" => OperandMode::Imm(16),
+            "imm32" => OperandMode::Imm(32),
             _ => OperandMode::None,
         }
     }
@@ -173,35 +114,12 @@ impl From<(Option<&str>, Option<&str>, Option<&str>, Option<&str>)> for OperandM
 
 impl From<&Operand> for OperandMode {
     fn from(op: &Operand) -> Self {
-        unimplemented!()
-    }
-}
-
-impl From<(&Operand, &Operand)> for OperandMode {
-    fn from(ops: (&Operand, &Operand)) -> Self {
-        match ops {
-            (Operand::Register(r1), Operand::Register(r2))
-                if r1.size() == 64 && r2.size() == 64 =>
-            {
-                OperandMode::Rm64R64
-            }
-            _ => unimplemented!(),
+        match op {
+            Operand::Register(reg) => OperandMode::Rm(reg.size() as u8),
+            Operand::Immediate(imm) => OperandMode::Imm(imm.size() as u8),
+            _ => OperandMode::None,
         }
     }
-}
-
-impl From<(&Operand, &Operand, &Operand)> for OperandMode {
-    fn from(ops: (&Operand, &Operand, &Operand)) -> Self {
-        unimplemented!()
-    }
-}
-
-/// The scale used in a SIB expression.
-pub(crate) enum Scale {
-    Byte = 0,
-    Word,
-    Double,
-    Quad,
 }
 
 #[cfg(test)]
