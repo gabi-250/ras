@@ -1,18 +1,17 @@
-use super::instruction_repr::INSTR_REPRS;
-use super::mnemonic::Mnemonic;
-use super::register::Register;
+use crate::x86::mnemonic::Mnemonic;
+use crate::x86::register::Register;
+use crate::x86::repr::INSTR_REPRS;
 
 pub struct Instruction {
     mnemonic: Mnemonic,
-    operands: Operands,
+    operands: Vec<Operand>,
 }
 
 impl Instruction {
-    pub fn new(mnemonic: Mnemonic, args: Vec<Operand>) -> Self {
-        Self {
-            mnemonic,
-            operands: Operands::from(args),
-        }
+    pub fn new(mnemonic: Mnemonic, operands: Vec<Operand>) -> Self {
+        assert!(operands.len() <= 4);
+
+        Self { mnemonic, operands }
     }
 
     pub fn encode(self) -> Vec<u8> {
@@ -64,16 +63,6 @@ impl Immediate {
             Self::Immediate16(_) => 16,
             Self::Immediate32(_) => 32,
         }
-    }
-}
-
-pub struct Operands(pub Vec<Operand>);
-
-impl From<Vec<Operand>> for Operands {
-    fn from(operands: Vec<Operand>) -> Self {
-        assert!(operands.len() <= 4);
-
-        Self(operands)
     }
 }
 

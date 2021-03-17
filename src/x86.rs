@@ -1,9 +1,9 @@
 pub mod assembler;
 pub mod instruction;
-pub mod instruction_encoding;
-pub mod instruction_repr;
 pub mod mnemonic;
+pub mod prefix;
 pub mod register;
+pub mod repr;
 
 pub use mnemonic::Mnemonic;
 
