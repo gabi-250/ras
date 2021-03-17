@@ -79,12 +79,30 @@ fn generate_instruction_repr() {
             };
 
             build_instrs.extend(quote! {
+                let mut operand_encodings = Vec::with_capacity(4);
+
+                if let Some(op) = #operand_encoding1 {
+                    operand_encodings.push(op);
+                }
+
+                if let Some(op) = #operand_encoding2 {
+                    operand_encodings.push(op);
+                }
+
+                if let Some(op) = #operand_encoding3 {
+                    operand_encodings.push(op);
+                }
+
+                if let Some(op) = #operand_encoding4 {
+                    operand_encodings.push(op);
+                }
+
                 let instr = InstructionRepr {
                     opcode: #opcode,
                     sib: false,
                     rex_prefix: #rex_prefix_tok,
                     opcode_extension: None,
-                    operand_encodings: [#operand_encoding1, #operand_encoding2, #operand_encoding3, #operand_encoding4],
+                    operand_encodings,
                 };
 
                 match instrs.entry(Mnemonic::#mnemonic) {
@@ -167,7 +185,7 @@ fn parse_mnemonic(mnemonic: &str) -> (String, usize, usize, usize, usize) {
 
 fn operand_size(op: &str) -> usize {
     // XXX implement me
-    if op.ends_with("64") || op == "RAX" {
+    if dbg!(op).ends_with("64") || op == "RAX" {
         return 64;
     } else if op.ends_with("32") || op == "EAX" {
         return 32;

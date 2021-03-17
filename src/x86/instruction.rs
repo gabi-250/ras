@@ -1,7 +1,6 @@
 use super::instruction_repr::INSTR_REPRS;
 use super::mnemonic::Mnemonic;
 use super::register::Register;
-use std::hash::Hash;
 
 pub struct Instruction {
     mnemonic: Mnemonic,
@@ -68,57 +67,13 @@ impl Immediate {
     }
 }
 
-pub struct Operands(pub [Option<Operand>; 4]);
+pub struct Operands(pub Vec<Operand>);
 
 impl From<Vec<Operand>> for Operands {
-    fn from(args: Vec<Operand>) -> Self {
-        assert!(args.len() <= 4);
-
-        let mut args = args.into_iter();
-        let operands: [Option<Operand>; 4] = [args.next(), args.next(), args.next(), args.next()];
+    fn from(operands: Vec<Operand>) -> Self {
+        assert!(operands.len() <= 4);
 
         Self(operands)
-    }
-}
-
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
-pub enum OperandMode {
-    Al(u8),
-    Imm(u8),
-    Rm(u8),
-    None,
-}
-
-impl From<&str> for OperandMode {
-    fn from(op: &str) -> Self {
-        match op {
-            "AL" => OperandMode::Al(8),
-            "AX" => OperandMode::Al(16),
-            "EAX" => OperandMode::Al(32),
-            "RAX" => OperandMode::Al(64),
-            "r/m8" => OperandMode::Rm(8),
-            "r/m16" => OperandMode::Rm(16),
-            "r/m32" => OperandMode::Rm(32),
-            "r/m64" => OperandMode::Rm(64),
-            "r8" => OperandMode::Rm(8),
-            "r16" => OperandMode::Rm(16),
-            "r32" => OperandMode::Rm(32),
-            "r64" => OperandMode::Rm(64),
-            "imm8" => OperandMode::Imm(8),
-            "imm16" => OperandMode::Imm(16),
-            "imm32" => OperandMode::Imm(32),
-            _ => OperandMode::None,
-        }
-    }
-}
-
-impl From<&Operand> for OperandMode {
-    fn from(op: &Operand) -> Self {
-        match op {
-            Operand::Register(reg) => OperandMode::Rm(reg.size() as u8),
-            Operand::Immediate(imm) => OperandMode::Imm(imm.size() as u8),
-            _ => OperandMode::None,
-        }
     }
 }
 
