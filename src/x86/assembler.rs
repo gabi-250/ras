@@ -1,9 +1,11 @@
+use super::encoder::Encoder;
 use super::instruction::Instruction;
 use super::Mode;
 
 pub struct Assembler {
     mode: Mode,
     instrs: Vec<Instruction>,
+    encoder: Encoder,
 }
 
 impl Assembler {
@@ -11,18 +13,17 @@ impl Assembler {
         Self {
             mode: Mode::Long,
             instrs,
+            encoder: Default::default(),
         }
     }
 
-    pub fn assemble(self) -> Vec<u8> {
+    pub fn assemble(mut self) -> Vec<u8> {
         assert_eq!(self.mode, Mode::Long);
 
-        let mut out = vec![];
-
         for instr in self.instrs {
-            out.extend_from_slice(&instr.encode());
+            instr.encode(&mut self.encoder);
         }
 
-        out
+        self.encoder.out
     }
 }

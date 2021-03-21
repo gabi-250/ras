@@ -75,7 +75,7 @@ fn generate_instruction_repr() {
             let mnemonic = mnemonic.parse::<TokenStream>().unwrap();
             let rex_prefix_tok = match rex_prefix {
                 None => quote! { None },
-                Some(s) => quote! { Some(std::str::FromStr::from_str(#s).unwrap()) },
+                Some(s) => quote! { Some(#s) },
             };
 
             build_instrs.extend(quote! {
@@ -97,13 +97,13 @@ fn generate_instruction_repr() {
                     operands.push(op);
                 }
 
-                let instr = InstructionRepr {
-                    opcode: #opcode,
-                    sib: false,
-                    rex_prefix: #rex_prefix_tok,
-                    opcode_extension: None,
+                let instr = InstructionRepr::new(
+                    #opcode,
+                    false,
+                    #rex_prefix_tok,
+                    None,
                     operands,
-                };
+                );
 
                 match instrs.entry(Mnemonic::#mnemonic) {
                     Entry::Occupied(mut e) => e.get_mut().push(instr),
@@ -186,9 +186,11 @@ fn parse_mnemonic(mnemonic: &str) -> (String, usize, usize, usize, usize) {
     (mnemonic.to_string(), operand1, operand2, operand3, operand4)
 }
 
+// XXX implement me
 fn operand_size(op: &str) -> usize {
-    // XXX implement me
-    if dbg!(op).ends_with("64") || op == "RAX" {
+    if op == "AL/AX/EAX/RAX" {
+        return 64;
+    } else if op.ends_with("64") || op == "RAX" {
         return 64;
     } else if op.ends_with("32") || op == "EAX" {
         return 32;

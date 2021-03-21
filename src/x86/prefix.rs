@@ -5,7 +5,7 @@ const REX: u8 = 0b1000000;
 const REX_W: u8 = 0b1001000;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) enum RexPrefix {
+pub enum RexPrefix {
     None,
     W,
     R,

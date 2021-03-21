@@ -1,4 +1,5 @@
 use lazy_static::lazy_static;
+use std::ops::Deref;
 
 lazy_static! {
     pub static ref RAX: Register = Register::Register64(RegisterNum::Rax);
@@ -18,7 +19,7 @@ lazy_static! {
     pub static ref CL: Register = Register::Register8Lo(RegisterNum::Rcx);
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Register {
     Register8Hi(RegisterNum),
     Register8Lo(RegisterNum),
@@ -38,19 +39,21 @@ impl Register {
             Register64(_) => 64,
         }
     }
+}
 
-    pub fn reg_num(&self) -> u8 {
+impl Deref for Register {
+    type Target = RegisterNum;
+
+    fn deref(&self) -> &Self::Target {
         use Register::*;
 
         match self {
-            Register8Hi(r) | Register8Lo(r) | Register16(r) | Register32(r) | Register64(r) => {
-                *r as u8
-            }
+            Register8Hi(r) | Register8Lo(r) | Register16(r) | Register32(r) | Register64(r) => r,
         }
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum RegisterNum {
     Rax = 0,
     Rcx = 1,

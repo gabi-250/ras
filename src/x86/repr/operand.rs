@@ -1,4 +1,5 @@
 use crate::x86::instruction::Operand;
+use crate::x86::register::RegisterNum;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct OperandRepr {
@@ -19,6 +20,13 @@ impl OperandRepr {
     pub fn can_encode(&self, op: &Operand) -> bool {
         if op.size() > self.size() {
             return false;
+        }
+
+        // RAX/EAX/AX/AH/AL
+        if self.kind == OperandKind::Al {
+            if let Operand::Register(reg) = op {
+                return **reg == RegisterNum::Rax;
+            }
         }
 
         return matches!(

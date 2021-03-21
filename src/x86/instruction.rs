@@ -1,3 +1,4 @@
+use crate::x86::encoder::Encoder;
 use crate::x86::mnemonic::Mnemonic;
 use crate::x86::register::Register;
 use crate::x86::repr::INSTR_REPRS;
@@ -14,14 +15,14 @@ impl Instruction {
         Self { mnemonic, operands }
     }
 
-    pub fn encode(self) -> Vec<u8> {
+    pub fn encode(self, enc: &mut Encoder) {
         let variants = (*INSTR_REPRS).get(&self.mnemonic).unwrap();
 
         variants
             .into_iter()
             .find(|variant| variant.matches(&self.operands))
-            .unwrap()
-            .emit_instr(self.operands)
+            .expect("failed to encode instruction")
+            .encode(enc, self.operands);
     }
 }
 
@@ -35,8 +36,15 @@ pub enum Operand {
 impl Operand {
     pub fn reg_num(&self) -> u8 {
         match self {
-            Operand::Register(reg) => reg.reg_num(),
+            Operand::Register(reg) => **reg as u8,
             _ => 0,
+        }
+    }
+
+    pub fn immediate(&self) -> Option<Immediate> {
+        match self {
+            Operand::Immediate(imm) => Some(*imm),
+            _ => None,
         }
     }
 
@@ -51,17 +59,17 @@ impl Operand {
 
 #[derive(Debug, Copy, Clone)]
 pub enum Immediate {
-    Immediate8(u8),
-    Immediate16(u16),
-    Immediate32(u32),
+    Imm8(u8),
+    Imm16(u16),
+    Imm32(u32),
 }
 
 impl Immediate {
     pub fn size(&self) -> usize {
         match self {
-            Self::Immediate8(_) => 8,
-            Self::Immediate16(_) => 16,
-            Self::Immediate32(_) => 32,
+            Self::Imm8(_) => 8,
+            Self::Imm16(_) => 16,
+            Self::Imm32(_) => 32,
         }
     }
 }
@@ -72,12 +80,15 @@ pub mod tests {
     use crate::x86::register::{RAX, RBX, RCX};
 
     macro_rules! encode_instr {
-        ($opcode:ident, $($operands:expr),*) => {
+        ($opcode:ident, $($operands:expr),*) => {{
+            let mut enc = Encoder::default();
             Instruction::new(
                 Mnemonic::$opcode,
                 vec![$($operands,)*]
-            ).encode()
-        }
+            ).encode(&mut enc);
+
+            enc.out
+        }}
     }
 
     #[test]
