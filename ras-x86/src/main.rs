@@ -1,7 +1,7 @@
-use ras::x86::assembler::Assembler;
-use ras::x86::instruction::{Instruction, Operand};
-use ras::x86::mnemonic::Mnemonic;
-use ras::x86::register::{RAX, RBX, RCX};
+use ras_x86::assembler::Assembler;
+use ras_x86::instruction::{Instruction, Operand};
+use ras_x86::mnemonic::Mnemonic;
+use ras_x86::register::{RAX, RBX, RCX};
 
 fn main() {
     let instrs = vec![

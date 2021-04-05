@@ -1,12 +1,10 @@
 pub mod assembler;
 pub mod encoder;
 pub mod instruction;
-pub mod mnemonic;
-pub mod prefix;
 pub mod register;
-pub mod repr;
 
-pub use mnemonic::Mnemonic;
+pub use ras_x86_repr as repr;
+pub use repr::mnemonic;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum Mode {

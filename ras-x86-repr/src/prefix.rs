@@ -1,10 +1,11 @@
+use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
 /// REX bits: 0100WRXB
 const REX: u8 = 0b1000000;
 const REX_W: u8 = 0b1001000;
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub enum RexPrefix {
     None,
     W,

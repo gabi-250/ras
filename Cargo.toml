@@ -1,17 +1,2 @@
-[package]
-name = "ras"
-version = "0.1.0"
-authors = ["Gabriela Alexandra Moldovan <gabi_250@live.com>"]
-edition = "2018"
-
-[dependencies]
-lazy_static = "1.4.0"
-target-lexicon = "0.11.1"
-
-[build-dependencies]
-csv = "1.1.5"
-quote = "1.0.8"
-proc-macro2 = "1.0.24"
-syn = "1.0.60"
-regex = "1.4.3"
-lazy_static = "1.4.0"
+[workspace]
+members = ["ras-x86", "ras-x86-repr", "ras-x86-csv"]

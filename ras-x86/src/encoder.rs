@@ -1,6 +1,6 @@
-use crate::x86::instruction::{Immediate, Operand};
-use crate::x86::register::Register;
-use crate::x86::repr::InstructionRepr;
+use crate::instruction::{Immediate, Operand};
+use crate::register::Register;
+use crate::repr::instruction::InstructionRepr;
 
 #[derive(Default)]
 pub struct Encoder {
@@ -8,6 +8,20 @@ pub struct Encoder {
 }
 
 impl Encoder {
+    // XXX have a separate emit_ function for 2 operand instructions
+    pub fn encode(&mut self, repr: &InstructionRepr, operands: Vec<Operand>) {
+        match operands.len() {
+            0 => self.encode_no_operands(repr),
+            1 => self.encode_1_operand(repr, &operands[0]),
+            //2 if self.direction() == OperationDirection::SrcDst => {
+            //self.encode_2_operands(repr, &operands[0], &operands[1])
+            //}
+            //2 => self.encode_2_operands(repr, &operands[1], &operands[0]),
+            2 => self.encode_2_operands(repr, &operands[0], &operands[1]),
+            n => unimplemented!("{} operands", n),
+        }
+    }
+
     pub fn encode_no_operands(&mut self, instr_repr: &InstructionRepr) {
         if let Some(rex_prefix) = instr_repr.rex_prefix {
             self.out.push(rex_prefix.into());
@@ -26,7 +40,7 @@ impl Encoder {
     ) {
         self.encode_no_operands(instr_repr);
 
-        if instr_repr.has_modrm() {
+        if dbg!(instr_repr).has_modrm() {
             // XXX which operand goes into RM? which operand goes into REG? it depends on the
             // instruction operand encoding
             let modrm_reg = if let Some(opcode_ext) = instr_repr.opcode_extension {
@@ -57,6 +71,11 @@ impl Encoder {
             (imm, size) => unimplemented!("imm={:?} size={}", imm, size),
         }
     }
+}
+
+enum OperationDirection {
+    SrcDst,
+    DstSrc,
 }
 
 /// The value of the ModR/M byte.

@@ -1,0 +1,9 @@
+[package]
+name = "ras-x86-csv"
+version = "0.1.0"
+authors = ["Gabriela Alexandra Moldovan <gabi_250@live.com>"]
+edition = "2018"
+
+[dependencies]
+regex = "1.4.3"
+lazy_static = "1.4.0"

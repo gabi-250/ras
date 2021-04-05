@@ -1,7 +1,20 @@
-use crate::x86::encoder::Encoder;
-use crate::x86::mnemonic::Mnemonic;
-use crate::x86::register::Register;
-use crate::x86::repr::INSTR_REPRS;
+use crate::encoder::Encoder;
+use crate::register::{Register, RegisterNum};
+use crate::repr::instruction::InstructionRepr;
+use crate::repr::mnemonic::Mnemonic;
+use crate::repr::operand::{OperandKind, OperandRepr};
+use lazy_static::lazy_static;
+use std::collections::HashMap;
+use std::fs;
+use std::path::Path;
+
+lazy_static! {
+    pub static ref INSTR_REPRS: HashMap<Mnemonic, Vec<InstructionRepr>> = {
+        let inst_map = fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join("bin/map")).unwrap();
+
+        bincode::deserialize(&inst_map).unwrap()
+    };
+}
 
 pub struct Instruction {
     mnemonic: Mnemonic,
@@ -18,11 +31,24 @@ impl Instruction {
     pub fn encode(self, enc: &mut Encoder) {
         let variants = (*INSTR_REPRS).get(&self.mnemonic).unwrap();
 
-        variants
+        let inst = variants
             .into_iter()
-            .find(|variant| variant.matches(&self.operands))
-            .expect("failed to encode instruction")
-            .encode(enc, self.operands);
+            .find(|variant| Self::matches(variant, &self.operands))
+            .expect("failed to encode instruction");
+
+        enc.encode(inst, self.operands);
+    }
+
+    /// Check if the operands can be encoded according to this `InstructionRepr`.
+    pub fn matches(repr: &InstructionRepr, operands: &[Operand]) -> bool {
+        if repr.operands.len() != operands.len() {
+            return false;
+        }
+
+        operands
+            .iter()
+            .zip(repr.operands.iter())
+            .all(|(op, op_enc)| op.can_encode(op_enc))
     }
 }
 
@@ -55,6 +81,28 @@ impl Operand {
             _ => unimplemented!("{:#x?}", self),
         }
     }
+
+    /// Check if an operand is compatible with a particular operand encoding.
+    pub fn can_encode(&self, op: &OperandRepr) -> bool {
+        if self.size() > op.size() {
+            return false;
+        }
+
+        // RAX/EAX/AX/AH/AL
+        if op.kind == OperandKind::Al {
+            if let Operand::Register(reg) = self {
+                return **reg == RegisterNum::Rax;
+            }
+        }
+
+        return matches!(
+            (self, op.kind),
+            (Operand::Memory, OperandKind::ModRmRegMem)
+                | (Operand::Register(_), OperandKind::ModRmRegMem)
+                | (Operand::Register(_), OperandKind::ModRmReg)
+                | (Operand::Immediate(_), OperandKind::Imm)
+        );
+    }
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -77,7 +125,7 @@ impl Immediate {
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use crate::x86::register::{RAX, RBX, RCX};
+    use crate::register::{RAX, RBX, RCX};
 
     macro_rules! encode_instr {
         ($opcode:ident, $($operands:expr),*) => {{
