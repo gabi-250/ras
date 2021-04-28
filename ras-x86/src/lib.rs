@@ -8,9 +8,18 @@ pub use repr::mnemonic;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum Mode {
+    /// 16-bit real mode.
     Real,
+    /// 32-bit protected mode.
     Protected,
+    /// 64-bit long mode.
     Long,
+}
+
+impl Default for Mode {
+    fn default() -> Self {
+        Self::Long
+    }
 }
 
 #[cfg(test)]
@@ -75,7 +84,7 @@ mod tests {
         )];
 
         assert_eq!(
-            vec![0x66, 0x83, 0xf0, 0x02],
+            vec![0x66, 0x35, 0x02, 0x00],
             Assembler::new_long(instrs).assemble()
         );
     }
@@ -107,7 +116,11 @@ mod tests {
         )];
 
         assert_eq!(
-            vec![0x83, 0xf0, 0xff],
+            // XXX: This could be encoded more efficiently by using the XOR r/m32, imm8 variant of
+            // the instruction instead (0xffffffff is 32-bit -1, but we could represent also it as
+            // an 8-bit value).
+            //vec![0x83, 0xf0, 0xff],
+            vec![0x35, 0xff, 0xff, 0xff, 0xff],
             Assembler::new_long(instrs).assemble()
         );
     }
@@ -117,7 +130,7 @@ mod tests {
         let instrs = vec![Instruction::new(
             Mnemonic::XOR,
             vec![
-                Operand::Register(*AX),
+                Operand::Register(*RAX),
                 Operand::Immediate(Immediate::Imm32(0x10000)),
             ],
         )];

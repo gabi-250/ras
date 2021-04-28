@@ -39,13 +39,23 @@ impl InstructionRepr {
         false
     }
 
+    /// Check the direction of data operation by looking at the d bit of the opcode.
+    /// XXX this bit is actually the sign extension bit if the operand is an immediate value.
     pub fn direction(&self) -> OperationDirection {
         assert!(
             self.operands.len() == 2,
             "direction of operation only makes sense for two-operand instructions"
         );
 
-        (self.opcode % 2 as u8).into()
+        (self.opcode / 10 % 2 as u8).into()
+    }
+
+    /// Return `true` if the data is full-sized.
+    ///
+    /// The data can be byte or full-sized, where full-sized is 16 or 32 bits. This information is
+    /// extracted from the w bit of the opcode (if w = 0, the data is byte-sized).
+    pub fn is_full_sized(&self) -> bool {
+        self.opcode % 2 == 1
     }
 }
 

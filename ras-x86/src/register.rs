@@ -29,7 +29,7 @@ pub enum Register {
 }
 
 impl Register {
-    pub fn size(&self) -> usize {
+    pub fn size(&self) -> u32 {
         use Register::*;
 
         match *self {

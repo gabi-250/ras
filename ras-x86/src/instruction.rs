@@ -67,6 +67,10 @@ impl Operand {
         }
     }
 
+    pub fn is_immediate(&self) -> bool {
+        matches!(self, Operand::Immediate(_))
+    }
+
     pub fn immediate(&self) -> Option<Immediate> {
         match self {
             Operand::Immediate(imm) => Some(*imm),
@@ -74,7 +78,7 @@ impl Operand {
         }
     }
 
-    pub fn size(&self) -> usize {
+    pub fn size(&self) -> u32 {
         match self {
             Operand::Register(reg) => reg.size(),
             Operand::Immediate(imm) => imm.size(),
@@ -113,7 +117,7 @@ pub enum Immediate {
 }
 
 impl Immediate {
-    pub fn size(&self) -> usize {
+    pub fn size(&self) -> u32 {
         match self {
             Self::Imm8(_) => 8,
             Self::Imm16(_) => 16,

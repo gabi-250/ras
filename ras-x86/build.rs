@@ -56,7 +56,7 @@ fn main() {
     fs::write(inst_map, bincode::serialize(&instrs).unwrap()).unwrap();
 }
 
-pub fn build_operand_enc(operand: &str, size: usize) -> Option<OperandRepr> {
+pub fn build_operand_enc(operand: &str, size: u32) -> Option<OperandRepr> {
     if MODRM_REG_RE.is_match(operand) {
         return Some(OperandRepr::new(OperandKind::ModRmReg, size));
     } else if MODRM_RM_RE.is_match(operand) {

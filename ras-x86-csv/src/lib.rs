@@ -30,7 +30,7 @@ pub enum CsvHeader {
     Description,
 }
 
-pub fn parse_mnemonic(mnemonic: &str) -> (String, usize, usize, usize, usize) {
+pub fn parse_mnemonic(mnemonic: &str) -> (String, u32, u32, u32, u32) {
     let mnemonic_idx = mnemonic.find(" ").unwrap_or(mnemonic.len());
     let (mnemonic, operands) = mnemonic.split_at(mnemonic_idx);
 
@@ -56,7 +56,7 @@ pub fn parse_mnemonic(mnemonic: &str) -> (String, usize, usize, usize, usize) {
 }
 
 // XXX implement me
-pub fn operand_size(op: &str) -> usize {
+pub fn operand_size(op: &str) -> u32 {
     if op == "AL/AX/EAX/RAX" {
         return 64;
     } else if op.ends_with("64") || op == "RAX" {

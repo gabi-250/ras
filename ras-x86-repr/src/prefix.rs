@@ -5,6 +5,8 @@ use std::str::FromStr;
 const REX: u8 = 0b1000000;
 const REX_W: u8 = 0b1001000;
 
+pub const OPERAND_SIZE_PREFIX: u8 = 0x66;
+
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub enum RexPrefix {
     None,

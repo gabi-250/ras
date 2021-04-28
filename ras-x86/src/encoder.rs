@@ -1,23 +1,47 @@
 use crate::instruction::{Immediate, Operand};
 use crate::register::Register;
-use crate::repr::instruction::InstructionRepr;
+use crate::repr::instruction::{InstructionRepr, OperationDirection};
+use crate::repr::prefix::OPERAND_SIZE_PREFIX;
+use crate::Mode;
+
+macro_rules! sext {
+    ($imm:expr, $size:expr) => {{
+        let imm = $imm as i32;
+        let remaining = std::mem::size_of_val(&imm) as u32 * 8 - $size;
+        let sext_imm = imm.wrapping_shl(remaining).wrapping_shr(remaining);
+
+        match $size {
+            8 => (sext_imm as u8).to_le_bytes().to_vec(),
+            16 => (sext_imm as u16).to_le_bytes().to_vec(),
+            32 => (sext_imm as u32).to_le_bytes().to_vec(),
+            n => panic!("invalid imm size: {}", n),
+        }
+    }};
+}
 
 #[derive(Default)]
 pub struct Encoder {
     pub out: Vec<u8>,
+    mode: Mode,
 }
 
 impl Encoder {
+    pub fn new(mode: Mode) -> Self {
+        Self {
+            out: Default::default(),
+            mode,
+        }
+    }
+
     // XXX have a separate emit_ function for 2 operand instructions
     pub fn encode(&mut self, repr: &InstructionRepr, operands: Vec<Operand>) {
         match operands.len() {
             0 => self.encode_no_operands(repr),
             1 => self.encode_1_operand(repr, &operands[0]),
-            //2 if self.direction() == OperationDirection::SrcDst => {
-            //self.encode_2_operands(repr, &operands[0], &operands[1])
-            //}
-            //2 => self.encode_2_operands(repr, &operands[1], &operands[0]),
-            2 => self.encode_2_operands(repr, &operands[0], &operands[1]),
+            2 if repr.direction() == OperationDirection::SrcDst => {
+                self.encode_2_operands(repr, &operands[0], &operands[1])
+            }
+            2 => self.encode_2_operands(repr, &operands[1], &operands[0]),
             n => unimplemented!("{} operands", n),
         }
     }
@@ -30,7 +54,9 @@ impl Encoder {
         self.out.push(instr_repr.opcode);
     }
 
-    pub fn encode_1_operand(&mut self, _instr_repr: &InstructionRepr, _operand: &Operand) {}
+    pub fn encode_1_operand(&mut self, _instr_repr: &InstructionRepr, _operand: &Operand) {
+        unimplemented!("single operand instruction");
+    }
 
     pub fn encode_2_operands(
         &mut self,
@@ -38,9 +64,22 @@ impl Encoder {
         src_op: &Operand,
         dst_op: &Operand,
     ) {
-        self.encode_no_operands(instr_repr);
+        // Encode prefixes
+        if let Some(rex_prefix) = instr_repr.rex_prefix {
+            self.out.push(rex_prefix.into());
+        }
 
-        if dbg!(instr_repr).has_modrm() {
+        // Do we need to encode an immediate?
+        let op_size = std::cmp::max(dst_op.size(), src_op.size());
+
+        // Do we need an operand-size prefix?
+        if instr_repr.is_full_sized() && self.needs_operand_size_prefix(op_size) {
+            self.out.push(OPERAND_SIZE_PREFIX);
+        }
+
+        self.out.push(instr_repr.opcode);
+
+        if instr_repr.has_modrm() {
             // XXX which operand goes into RM? which operand goes into REG? it depends on the
             // instruction operand encoding
             let modrm_reg = if let Some(opcode_ext) = instr_repr.opcode_extension {
@@ -62,20 +101,24 @@ impl Encoder {
         }
     }
 
-    /// Encode `imm` to have the specified `size`, sign-extending if needed.
-    fn encode_imm(&mut self, imm: Immediate, size: usize) {
-        match (imm, size) {
-            (Immediate::Imm8(imm), 8) => self.out.push(imm),
-            (Immediate::Imm16(imm), 16) => self.out.extend(&imm.to_le_bytes()),
-            (Immediate::Imm32(imm), 32) => self.out.extend(&imm.to_le_bytes()),
-            (imm, size) => unimplemented!("imm={:?} size={}", imm, size),
+    fn needs_operand_size_prefix(&mut self, size: u32) -> bool {
+        match self.mode {
+            Mode::Long => size == 16,
+            mode => unimplemented!("mode={:?}", mode),
         }
     }
-}
 
-enum OperationDirection {
-    SrcDst,
-    DstSrc,
+    /// Encode `imm` to have the specified `size`, sign-extending if needed.
+    fn encode_imm(&mut self, imm: Immediate, size: u32) {
+        // Can't use more than 32 bits for the immediate.
+        let size = std::cmp::min(size, 32);
+
+        match (imm, size) {
+            (Immediate::Imm8(imm), size) => self.out.extend(&sext!(imm, size)),
+            (Immediate::Imm16(imm), size) => self.out.extend(&sext!(imm, size)),
+            (Immediate::Imm32(imm), size) => self.out.extend(&sext!(imm, size)),
+        }
+    }
 }
 
 /// The value of the ModR/M byte.
