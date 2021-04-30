@@ -30,13 +30,9 @@ impl InstructionRepr {
     }
 
     pub fn has_modrm(&self) -> bool {
-        for op in &self.operands {
-            if matches!(op.kind, OperandKind::ModRmReg | OperandKind::ModRmRegMem) {
-                return true;
-            }
-        }
-
-        false
+        self.operands
+            .iter()
+            .any(|op| matches!(op.kind, OperandKind::ModRmReg | OperandKind::ModRmRegMem))
     }
 
     /// Check the direction of data operation by looking at the d bit of the opcode.
@@ -47,7 +43,7 @@ impl InstructionRepr {
             "direction of operation only makes sense for two-operand instructions"
         );
 
-        (self.opcode / 10 % 2 as u8).into()
+        (self.opcode % 2 as u8).into()
     }
 
     /// Return `true` if the data is full-sized.

@@ -27,7 +27,7 @@ mod tests {
     use super::assembler::Assembler;
     use super::instruction::{Immediate, Instruction, Operand};
     use super::mnemonic::Mnemonic;
-    use super::register::{AL, AX, EAX, RAX, RBX, RCX};
+    use super::register::{AL, AX, EAX, EBX, RAX, RBX, RCX};
 
     #[test]
     fn add_reg_reg() {
@@ -84,7 +84,10 @@ mod tests {
         )];
 
         assert_eq!(
-            vec![0x66, 0x35, 0x02, 0x00],
+            // XXX: This could be encoded more efficiently by using the XOR AX, imm16 variant of
+            // the instruction instead
+            //vec![0x66, 0x35, 0x02, 0x00],
+            vec![0x66, 0x83, 0b11110000, 0x2],
             Assembler::new_long(instrs).assemble()
         );
     }
@@ -140,4 +143,25 @@ mod tests {
             Assembler::new_long(instrs).assemble()
         );
     }
+
+    #[test]
+    fn add_ebx_imm8() {
+        let instrs = vec![Instruction::new(
+            Mnemonic::ADD,
+            vec![
+                Operand::Register(*EBX),
+                Operand::Immediate(Immediate::Imm8(0x2)),
+            ],
+        )];
+
+        assert_eq!(
+            vec![0x83, 0b11000011, 0x2],
+            Assembler::new_long(instrs).assemble()
+        );
+    }
+
+    //   XXX
+    //   33 54 24 10             xor    0x10(%rsp),%edx
+    //   42 c6 04 3b 00          movb   $0x0,(%rbx,%r15,1)
+    //   48 8d 5c 03 01          lea    0x1(%rbx,%rax,1),%rbx
 }

@@ -33,15 +33,11 @@ impl Encoder {
         }
     }
 
-    // XXX have a separate emit_ function for 2 operand instructions
     pub fn encode(&mut self, repr: &InstructionRepr, operands: Vec<Operand>) {
         match operands.len() {
             0 => self.encode_no_operands(repr),
             1 => self.encode_1_operand(repr, &operands[0]),
-            2 if repr.direction() == OperationDirection::SrcDst => {
-                self.encode_2_operands(repr, &operands[0], &operands[1])
-            }
-            2 => self.encode_2_operands(repr, &operands[1], &operands[0]),
+            2 => self.encode_2_operands(repr, &operands[0], &operands[1]),
             n => unimplemented!("{} operands", n),
         }
     }
@@ -61,19 +57,17 @@ impl Encoder {
     pub fn encode_2_operands(
         &mut self,
         instr_repr: &InstructionRepr,
-        src_op: &Operand,
         dst_op: &Operand,
+        src_op: &Operand,
     ) {
         // Encode prefixes
         if let Some(rex_prefix) = instr_repr.rex_prefix {
             self.out.push(rex_prefix.into());
         }
 
-        // Do we need to encode an immediate?
         let op_size = std::cmp::max(dst_op.size(), src_op.size());
 
-        // Do we need an operand-size prefix?
-        if instr_repr.is_full_sized() && self.needs_operand_size_prefix(op_size) {
+        if self.needs_operand_size_prefix(instr_repr, op_size) {
             self.out.push(OPERAND_SIZE_PREFIX);
         }
 
@@ -85,35 +79,55 @@ impl Encoder {
             let modrm_reg = if let Some(opcode_ext) = instr_repr.opcode_extension {
                 opcode_ext
             } else {
-                dst_op.reg_num()
+                src_op.reg_num().unwrap()
             };
 
             self.out.push(modrm(
                 0b11, // XXX todo
                 modrm_reg,
-                src_op.reg_num(),
+                dst_op.reg_num().unwrap(),
             ))
         }
 
         // Do we need to encode an immediate?
         if let Some(imm) = src_op.immediate() {
-            self.encode_imm(imm, dst_op.size());
+            self.encode_imm(imm, src_op.size());
         }
     }
 
-    fn needs_operand_size_prefix(&mut self, size: u32) -> bool {
+    /// Check if the current instruction needs an operand-size prefix.
+    ///
+    /// An operand-size prefix overrides the default operand-size for a particular instruction. In
+    /// 64-bit (long) mode, the default operand size is 32 bits.
+    ///
+    /// According the to Intel manual, this is how the effective operand size is affected by the REX.W
+    /// and operand-size prefixes:
+    ///
+    /// REX.W Prefix            |0  |0  |0  |0  |1  |1  |1  |1
+    /// Operand-Size Prefix     |N  |N  |Y  |Y  |N  |N  |Y  |Y
+    /// Effective Operand Size  |32 |32 |16 |16 |64 |64 |64 |64
+    fn needs_operand_size_prefix(&mut self, instr_repr: &InstructionRepr, size: u32) -> bool {
+        // The REX.W prefix takes precedence over the operand-size prefix, so if the instruction
+        // already has a REX.W prefix, there's no need to add the operand-size prefix.
+        if instr_repr.rex_prefix.is_some() || !instr_repr.is_full_sized() {
+            return false;
+        }
+
         match self.mode {
             Mode::Long => size == 16,
             mode => unimplemented!("mode={:?}", mode),
         }
     }
 
+    fn needs_address_size_prefix(&mut self, size: u32) -> bool {
+        unimplemented!()
+    }
+
     /// Encode `imm` to have the specified `size`, sign-extending if needed.
     fn encode_imm(&mut self, imm: Immediate, size: u32) {
+        // XXX: MOV r64, imm64 supports 64-bit immediates
         // Can't use more than 32 bits for the immediate.
-        let size = std::cmp::min(size, 32);
-
-        match (imm, size) {
+        match (imm, std::cmp::min(size, 32)) {
             (Immediate::Imm8(imm), size) => self.out.extend(&sext!(imm, size)),
             (Immediate::Imm16(imm), size) => self.out.extend(&sext!(imm, size)),
             (Immediate::Imm32(imm), size) => self.out.extend(&sext!(imm, size)),
@@ -122,8 +136,8 @@ impl Encoder {
 }
 
 /// The value of the ModR/M byte.
-pub(crate) fn modrm(md: u8, rm: u8, reg: u8) -> u8 {
-    ((md & 0b11) << 6) + ((rm & 0b111) << 3) + reg
+fn modrm(modifier: u8, rm: u8, reg: u8) -> u8 {
+    ((modifier & 0b11) << 6) + ((rm & 0b111) << 3) + reg
 }
 
 /// The scale used in a SIB expression.

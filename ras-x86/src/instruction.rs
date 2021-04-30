@@ -31,12 +31,32 @@ impl Instruction {
     pub fn encode(self, enc: &mut Encoder) {
         let variants = (*INSTR_REPRS).get(&self.mnemonic).unwrap();
 
-        let inst = variants
+        // Find the best instruction encoding (always choose the encoding with the smallest operand
+        // sizes).
+        let inst_repr = variants
             .into_iter()
-            .find(|variant| Self::matches(variant, &self.operands))
-            .expect("failed to encode instruction");
+            .filter(|variant| Self::matches(variant, &self.operands))
+            .reduce(|inst_a, inst_b| {
+                let mut found_better = false;
+                for (op_repr_a, op_repr_b) in inst_a.operands.iter().zip(inst_b.operands.iter()) {
+                    if op_repr_b.size() > op_repr_a.size() {
+                        return inst_a;
+                    } else if op_repr_b.size() < op_repr_a.size() {
+                        found_better = true;
+                    }
+                }
 
-        enc.encode(inst, self.operands);
+                if found_better {
+                    inst_b
+                } else {
+                    inst_a
+                }
+            });
+
+        enc.encode(
+            inst_repr.expect("instruction repr not found"),
+            self.operands,
+        );
     }
 
     /// Check if the operands can be encoded according to this `InstructionRepr`.
@@ -60,15 +80,23 @@ pub enum Operand {
 }
 
 impl Operand {
-    pub fn reg_num(&self) -> u8 {
-        match self {
-            Operand::Register(reg) => **reg as u8,
-            _ => 0,
-        }
+    pub fn is_register(&self) -> bool {
+        matches!(self, Operand::Register(_))
     }
 
     pub fn is_immediate(&self) -> bool {
         matches!(self, Operand::Immediate(_))
+    }
+
+    pub fn is_memory(&self) -> bool {
+        matches!(self, Operand::Memory)
+    }
+
+    pub fn reg_num(&self) -> Option<u8> {
+        match self {
+            Operand::Register(reg) => Some(**reg as u8),
+            _ => None,
+        }
     }
 
     pub fn immediate(&self) -> Option<Immediate> {
@@ -86,10 +114,20 @@ impl Operand {
         }
     }
 
+    pub fn is_exact_match(&self, op: &OperandRepr) -> bool {
+        self.size() == op.size()
+    }
+
     /// Check if an operand is compatible with a particular operand encoding.
     pub fn can_encode(&self, op: &OperandRepr) -> bool {
         if self.size() > op.size() {
             return false;
+        }
+
+        if let Operand::Register(reg) = self {
+            if self.size() != op.size() {
+                return false;
+            }
         }
 
         // RAX/EAX/AX/AH/AL

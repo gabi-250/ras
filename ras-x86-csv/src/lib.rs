@@ -11,6 +11,7 @@ lazy_static! {
     pub static ref IW_RE: Regex = Regex::new("iw").unwrap();
     pub static ref MOFFS_RE: Regex = Regex::new("Moffs").unwrap();
     pub static ref OPCODE_RD_RE: Regex = Regex::new("opcode \\+ ?rd").unwrap();
+    pub static ref OPCODE_EXT_RE: Regex = Regex::new(r"/(\d)").unwrap();
 }
 
 #[allow(unused)]
@@ -63,20 +64,32 @@ pub fn operand_size(op: &str) -> u32 {
         return 64;
     } else if op.ends_with("32") || op == "EAX" {
         return 32;
+    } else if op.ends_with("16") || op == "AX" {
+        return 16;
     }
 
     8
 }
 
-pub fn parse_instr(instr: &str) -> (u8, Option<&str>) {
+/// Return (opcode, opcode_extension, REX prefix).
+pub fn parse_instr(instr: &str) -> (u8, Option<u8>, Option<&str>) {
     let mut instr = instr.split(" ");
     let mut opcode = 0;
+    let mut opcode_ext = None;
     let mut rex_prefix = None;
 
     loop {
         match instr.next() {
             Some(op) if u8::from_str_radix(op, 16).is_ok() => {
                 opcode = u8::from_str_radix(op, 16).unwrap();
+
+                if let Some(maybe_opcode_ext) = instr.next() {
+                    if let Some(caps) = OPCODE_EXT_RE.captures(maybe_opcode_ext) {
+                        opcode_ext = caps
+                            .get(1)
+                            .map(|op| u8::from_str_radix(op.as_str(), 16).unwrap());
+                    }
+                }
 
                 continue;
             }
@@ -91,5 +104,5 @@ pub fn parse_instr(instr: &str) -> (u8, Option<&str>) {
         }
     }
 
-    (opcode, rex_prefix)
+    (opcode, opcode_ext, rex_prefix)
 }

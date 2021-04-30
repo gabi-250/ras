@@ -23,7 +23,8 @@ fn main() {
         if matches!(rec.get(CsvHeader::FeatureFlags as usize), Some(flags) if !flags.is_empty()) {
             continue;
         }
-        let (opcode, rex_prefix) = parse_instr(rec.get(CsvHeader::Opcode as usize).unwrap());
+        let (opcode, opcode_ext, rex_prefix) =
+            parse_instr(rec.get(CsvHeader::Opcode as usize).unwrap());
         let (mnemonic, size1, size2, size3, size4) =
             parse_mnemonic(rec.get(CsvHeader::Instruction as usize).unwrap());
 
@@ -47,7 +48,7 @@ fn main() {
         .filter_map(|op| op)
         .collect();
 
-        let instr = InstructionRepr::new(opcode, false, rex_prefix, None, operands);
+        let instr = InstructionRepr::new(opcode, false, rex_prefix, opcode_ext, operands);
 
         instrs.entry(mnemonic).or_default().push(instr);
     }
