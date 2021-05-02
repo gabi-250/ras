@@ -1,24 +1,28 @@
 use lazy_static::lazy_static;
 use std::ops::Deref;
 
-lazy_static! {
-    pub static ref RAX: Register = Register::Register64(RegisterNum::Rax);
-    pub static ref EAX: Register = Register::Register32(RegisterNum::Rax);
-    pub static ref AX: Register = Register::Register16(RegisterNum::Rax);
-    pub static ref AH: Register = Register::Register8Hi(RegisterNum::Rax);
-    pub static ref AL: Register = Register::Register8Lo(RegisterNum::Rax);
-    pub static ref RBX: Register = Register::Register64(RegisterNum::Rbx);
-    pub static ref EBX: Register = Register::Register32(RegisterNum::Rbx);
-    pub static ref BX: Register = Register::Register16(RegisterNum::Rbx);
-    pub static ref BH: Register = Register::Register8Hi(RegisterNum::Rbx);
-    pub static ref BL: Register = Register::Register8Lo(RegisterNum::Rbx);
-    pub static ref RCX: Register = Register::Register64(RegisterNum::Rcx);
-    pub static ref ECX: Register = Register::Register32(RegisterNum::Rcx);
-    pub static ref CX: Register = Register::Register16(RegisterNum::Rcx);
-    pub static ref CH: Register = Register::Register8Hi(RegisterNum::Rcx);
-    pub static ref CL: Register = Register::Register8Lo(RegisterNum::Rcx);
-    pub static ref RBP: Register = Register::Register64(RegisterNum::Rbp);
+macro_rules! decl_reg {
+    ($name64:ident, $name32:ident, $name16:ident $(, $name8lo:ident $(, $name8hi:ident)?)? - $reg_name:ident) => {
+        lazy_static! {
+            pub static ref $name64: Register = Register::Register64(RegisterNum::$reg_name);
+            pub static ref $name32: Register = Register::Register32(RegisterNum::$reg_name);
+            pub static ref $name16: Register = Register::Register16(RegisterNum::$reg_name);
+            $(
+                pub static ref $name8lo: Register = Register::Register8Lo(RegisterNum::$reg_name);
+                $(pub static ref $name8hi: Register = Register::Register8Hi(RegisterNum::$reg_name);)?
+            )?
+        }
+    }
 }
+
+decl_reg!(RAX, EAX, AX, AL, AH - Rax);
+decl_reg!(RBX, EBX, BX, BL, BH - Rbx);
+decl_reg!(RCX, ECX, CX, CL, CH - Rcx);
+decl_reg!(RDX, EDX, DX, DL, DH - Rdx);
+decl_reg!(RDI, EDI, DI, DIL - Rdi);
+decl_reg!(RSI, ESI, SI, SIL - Rsi);
+decl_reg!(RBP, EBP, BP, BPL - Rbp);
+decl_reg!(RSP, ESP, SP - Rsp);
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Register {
