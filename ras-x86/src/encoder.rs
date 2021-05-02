@@ -1,4 +1,4 @@
-use crate::instruction::{Immediate, Operand};
+use crate::instruction::{Immediate, Operand, Scale};
 use crate::register::Register;
 use crate::repr::instruction::{InstructionRepr, OperationDirection};
 use crate::repr::prefix::OPERAND_SIZE_PREFIX;
@@ -65,7 +65,11 @@ impl Encoder {
             self.out.push(rex_prefix.into());
         }
 
-        let op_size = std::cmp::max(dst_op.size(), src_op.size());
+        let op_size = if dst_op.is_memory() {
+            src_op.size()
+        } else {
+            std::cmp::max(dst_op.size(), src_op.size())
+        };
 
         if self.needs_operand_size_prefix(instr_repr, op_size) {
             self.out.push(OPERAND_SIZE_PREFIX);
@@ -74,8 +78,6 @@ impl Encoder {
         self.out.push(instr_repr.opcode);
 
         if instr_repr.has_modrm() {
-            // XXX which operand goes into RM? which operand goes into REG? it depends on the
-            // instruction operand encoding
             let modrm_reg = if let Some(opcode_ext) = instr_repr.opcode_extension {
                 opcode_ext
             } else {
@@ -140,32 +142,14 @@ fn modrm(modifier: u8, rm: u8, reg: u8) -> u8 {
     ((modifier & 0b11) << 6) + ((rm & 0b111) << 3) + reg
 }
 
-/// The scale used in a SIB expression.
-#[allow(unused)]
-pub(crate) enum Scale {
-    Byte = 0,
-    Word,
-    Double,
-    Quad,
-}
-
 /// The value of the SIB byte. From the Intel manual:
 ///   * The scale field specifies the scale factor.
 ///   * The index field specifies the register number of the index register.
 ///   * The base field specifies the register number of the base register.
+///
+/// See Table 2-3. 32-Bit Addressing Forms with the SIB Byte
 #[allow(unused)]
-pub(crate) fn sib(scale: Option<Scale>, index: Register, base: Register) -> u8 {
-    // Table 2-3. 32-Bit Addressing Forms with the SIB Byte
-    let scale = match scale {
-        Some(Scale::Byte) | None => 0,
-        Some(Scale::Word) => 0b01,
-        Some(Scale::Double) => 0b10,
-        Some(Scale::Quad) => 0b11,
-    };
-
-    let index = *index as u8;
-    let base = *base as u8;
-
+pub fn sib(scale: u8, index: u8, base: u8) -> u8 {
     // XXX is this right?
     ((scale & 0b11) << 6) + ((index & 0b111) << 3) + base
 }

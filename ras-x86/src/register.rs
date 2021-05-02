@@ -17,6 +17,7 @@ lazy_static! {
     pub static ref CX: Register = Register::Register16(RegisterNum::Rcx);
     pub static ref CH: Register = Register::Register8Hi(RegisterNum::Rcx);
     pub static ref CL: Register = Register::Register8Lo(RegisterNum::Rcx);
+    pub static ref RBP: Register = Register::Register64(RegisterNum::Rbp);
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

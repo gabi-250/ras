@@ -76,7 +76,27 @@ impl Instruction {
 pub enum Operand {
     Register(Register),
     Immediate(Immediate),
-    Memory, // XXX
+    Memory {
+        /// XXX
+        segment_override: Option<Register>,
+        /// Any GPR.
+        base: Option<Register>,
+        /// Any GPR except ESP/RSP.
+        index: Option<Register>,
+        /// The multiplier (one of 1, 2, 4, or 8).
+        scale: Option<Scale>,
+        /// An 8-, 16-, or 32-bit value.
+        displacement: Option<u64>,
+    },
+}
+
+/// The scale used in a SIB expression.
+#[derive(Debug, Clone)]
+pub enum Scale {
+    Byte = 0,
+    Word = 0b01,
+    Double = 0b10,
+    Quad = 0b11,
 }
 
 impl Operand {
@@ -89,7 +109,7 @@ impl Operand {
     }
 
     pub fn is_memory(&self) -> bool {
-        matches!(self, Operand::Memory)
+        matches!(self, Operand::Memory { .. })
     }
 
     pub fn reg_num(&self) -> Option<u8> {
@@ -120,7 +140,7 @@ impl Operand {
 
     /// Check if an operand is compatible with a particular operand encoding.
     pub fn can_encode(&self, op: &OperandRepr) -> bool {
-        if self.size() > op.size() {
+        if !self.is_memory() && self.size() > op.size() {
             return false;
         }
 
@@ -139,7 +159,7 @@ impl Operand {
 
         return matches!(
             (self, op.kind),
-            (Operand::Memory, OperandKind::ModRmRegMem)
+            (Operand::Memory { .. }, OperandKind::ModRmRegMem)
                 | (Operand::Register(_), OperandKind::ModRmRegMem)
                 | (Operand::Register(_), OperandKind::ModRmReg)
                 | (Operand::Immediate(_), OperandKind::Imm)
@@ -182,7 +202,7 @@ pub mod tests {
     }
 
     #[test]
-    fn emit_add() {
+    fn register_add() {
         assert_eq!(
             encode_instr!(ADD, Operand::Register(*RAX), Operand::Register(*RCX)),
             vec![0x48, 0x01, 0xc8]
