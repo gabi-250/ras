@@ -144,7 +144,7 @@ impl Operand {
             return false;
         }
 
-        if let Operand::Register(reg) = self {
+        if self.is_register() {
             if self.size() != op.size() {
                 return false;
             }

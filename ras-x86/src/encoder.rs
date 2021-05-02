@@ -1,6 +1,6 @@
-use crate::instruction::{Immediate, Operand, Scale};
+use crate::instruction::{Immediate, Operand};
 use crate::register::{Register, RegisterNum};
-use crate::repr::instruction::{InstructionRepr, OperationDirection};
+use crate::repr::instruction::InstructionRepr;
 use crate::repr::prefix::OPERAND_SIZE_PREFIX;
 use crate::Mode;
 
@@ -104,7 +104,7 @@ impl Encoder {
 
                 let sib = match (base, index) {
                     // TODO: mod = 00 for disp32 with no SIB
-                    (Some(base), None) => None,
+                    (Some(_), None) => None,
                     (Some(base), Some(index)) => {
                         Some(sib(*scale as u8, **index as u8, sib_base(*base)))
                     }

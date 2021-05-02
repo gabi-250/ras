@@ -7,13 +7,15 @@ use std::fs::{self, File};
 use std::path::Path;
 use std::str::FromStr;
 
-const INSTR_CSV: &str = "../ras-x86-csv/x86-csv/x86.csv";
-const INSTR_MAP: &str = "bin/map";
+const INST_CSV: &str = "../ras-x86-csv/x86-csv/x86.csv";
+const INST_MAP: &str = "bin/map";
 
 fn main() {
-    let mut rdr = csv::Reader::from_reader(
-        File::open(Path::new(env!("CARGO_MANIFEST_DIR")).join(INSTR_CSV)).unwrap(),
-    );
+    let inst_csv = Path::new(env!("CARGO_MANIFEST_DIR")).join(INST_CSV);
+    println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-changed={}", inst_csv.to_str().unwrap());
+
+    let mut rdr = csv::Reader::from_reader(File::open(inst_csv).unwrap());
 
     let mut instrs: HashMap<Mnemonic, Vec<InstructionRepr>> = Default::default();
     for rec in rdr.records() {
@@ -53,7 +55,7 @@ fn main() {
         instrs.entry(mnemonic).or_default().push(instr);
     }
 
-    let inst_map = Path::new(env!("CARGO_MANIFEST_DIR")).join(INSTR_MAP);
+    let inst_map = Path::new(env!("CARGO_MANIFEST_DIR")).join(INST_MAP);
     fs::write(inst_map, bincode::serialize(&instrs).unwrap()).unwrap();
 }
 
