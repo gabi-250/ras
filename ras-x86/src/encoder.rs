@@ -1,5 +1,5 @@
 use crate::instruction::{Immediate, Operand, Scale};
-use crate::register::Register;
+use crate::register::{Register, RegisterNum};
 use crate::repr::instruction::{InstructionRepr, OperationDirection};
 use crate::repr::prefix::OPERAND_SIZE_PREFIX;
 use crate::Mode;
@@ -84,11 +84,53 @@ impl Encoder {
                 src_op.reg_num().unwrap()
             };
 
-            self.out.push(modrm(
-                0b11, // XXX todo
-                modrm_reg,
-                dst_op.reg_num().unwrap(),
-            ))
+            if let Operand::Memory {
+                displacement,
+                base,
+                index,
+                scale,
+                ..
+            } = dst_op
+            {
+                let (modifier, displacement) = match displacement {
+                    // disp8
+                    Some(v) if v.next_power_of_two() < 256 => {
+                        (0b01, Some((*v as u8).to_le_bytes().to_vec()))
+                    }
+                    // disp32
+                    Some(v) => (0b10, Some(v.to_le_bytes().to_vec())),
+                    None => (0b00, None),
+                };
+
+                let sib = match (base, index) {
+                    // TODO: mod = 00 for disp32 with no SIB
+                    (Some(base), None) => None,
+                    (Some(base), Some(index)) => {
+                        Some(sib(*scale as u8, **index as u8, sib_base(*base)))
+                    }
+                    (None, Some(index)) => Some(sib(*scale as u8, 0b100, sib_base(*index))),
+                    (None, None) => panic!("invalid SIB expression"), // TODO return error
+                };
+
+                let rm = if sib.is_some() {
+                    0b100
+                } else {
+                    dst_op.reg_num().unwrap()
+                };
+                self.out.push(modrm(modifier, modrm_reg, rm));
+
+                if let Some(sib) = sib {
+                    self.out.push(sib);
+                }
+
+                // Encode the displacement if needed
+                if let Some(displacement) = displacement {
+                    self.out.extend(displacement);
+                }
+            } else {
+                self.out
+                    .push(modrm(0b11, modrm_reg, dst_op.reg_num().unwrap_or(0)));
+            }
         }
 
         // Do we need to encode an immediate?
@@ -114,7 +156,6 @@ impl Encoder {
         if instr_repr.rex_prefix.is_some() || !instr_repr.is_full_sized() {
             return false;
         }
-
         match self.mode {
             Mode::Long => size == 16,
             mode => unimplemented!("mode={:?}", mode),
@@ -138,8 +179,24 @@ impl Encoder {
 }
 
 /// The value of the ModR/M byte.
-fn modrm(modifier: u8, rm: u8, reg: u8) -> u8 {
-    ((modifier & 0b11) << 6) + ((rm & 0b111) << 3) + reg
+fn modrm(modifier: u8, reg: u8, rm: u8) -> u8 {
+    ((modifier & 0b11) << 6) + ((reg & 0b111) << 3) + rm
+}
+
+/// Return the base field of the SIB byte for the specified base register.
+///
+/// See Table 2-3. 32-Bit Addressing Forms with the SIB Byte.
+fn sib_base(reg: Register) -> u8 {
+    match *reg {
+        RegisterNum::Rax
+        | RegisterNum::Rcx
+        | RegisterNum::Rdx
+        | RegisterNum::Rbx
+        | RegisterNum::Rsp
+        | RegisterNum::Rsi
+        | RegisterNum::Rdi => *reg as u8,
+        _ => 0b101,
+    }
 }
 
 /// The value of the SIB byte. From the Intel manual:
@@ -148,8 +205,6 @@ fn modrm(modifier: u8, rm: u8, reg: u8) -> u8 {
 ///   * The base field specifies the register number of the base register.
 ///
 /// See Table 2-3. 32-Bit Addressing Forms with the SIB Byte
-#[allow(unused)]
 pub fn sib(scale: u8, index: u8, base: u8) -> u8 {
-    // XXX is this right?
     ((scale & 0b11) << 6) + ((index & 0b111) << 3) + base
 }

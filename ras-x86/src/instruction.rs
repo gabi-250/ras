@@ -84,14 +84,14 @@ pub enum Operand {
         /// Any GPR except ESP/RSP.
         index: Option<Register>,
         /// The multiplier (one of 1, 2, 4, or 8).
-        scale: Option<Scale>,
+        scale: Scale,
         /// An 8-, 16-, or 32-bit value.
         displacement: Option<u64>,
     },
 }
 
 /// The scale used in a SIB expression.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum Scale {
     Byte = 0,
     Word = 0b01,

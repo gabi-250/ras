@@ -141,16 +141,36 @@ mod tests {
     fn mov_imm8_memory_indirect() {
         // XXX use the REX.X prefix to encode r15
         //   42 c6 04 3b 00          movb   $0x0,(%rbx,%r15,1)
-        //   c6 04 2b 00             movb   $0x0,(%rbx,%rbp,1)
+        //   c6 04 2b 02             movb   $0x2,(%rbx,%rbp,1)
         assert_encoding_eq!(
-            [0xc6, 0b100, 0b111011, 2],
+            [0xc6, 0b00_000_100, 0b00_101_011, 2],
             MOV,
             Operand::Memory {
                 segment_override: None,
                 base: Some(*RBX),
                 index: Some(*RBP),
-                scale: Some(Scale::Byte),
+                scale: Scale::Byte,
                 displacement: None
+            },
+            Operand::Immediate(Immediate::Imm8(0x2))
+        );
+    }
+
+    #[test]
+    fn mov_imm8_memory_indirect_with_displacement() {
+        // XXX use the REX.X prefix to encode r15
+        //   42 c6 04 3b 00          movb   $0x0,(%rbx,%r15,1)
+        //   c6 04 2b 02             movb   $0x2,(%rbx,%rbp,1)
+        assert_encoding_eq!(
+            [0xc6, 0b01_000_100, 0b01_101_011, 5, 2],
+            MOV,
+            //  c6 44 2b 05 02          movb   $0x2,0x5(%rbx,%rbp,1)
+            Operand::Memory {
+                segment_override: None,
+                base: Some(*RBX),
+                index: Some(*RBP),
+                scale: Scale::Word,
+                displacement: Some(5),
             },
             Operand::Immediate(Immediate::Imm8(0x2))
         );
