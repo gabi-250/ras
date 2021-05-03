@@ -1,8 +1,10 @@
-use crate::instruction::{Immediate, Operand};
+use crate::operand::{Immediate, Operand, Scale};
 use crate::register::{Register, RegisterNum};
 use crate::repr::instruction::InstructionRepr;
 use crate::repr::prefix::OPERAND_SIZE_PREFIX;
 use crate::Mode;
+
+const SIB_INDEX_NONE: u8 = 0b100;
 
 macro_rules! sext {
     ($imm:expr, $size:expr) => {{
@@ -67,6 +69,8 @@ impl Encoder {
 
         let op_size = if dst_op.is_memory() {
             src_op.size()
+        } else if src_op.is_memory() {
+            dst_op.size()
         } else {
             std::cmp::max(dst_op.size(), src_op.size())
         };
@@ -78,44 +82,61 @@ impl Encoder {
         self.out.push(instr_repr.opcode);
 
         if instr_repr.has_modrm() {
+            let memory_op = if dst_op.is_memory() {
+                Some(dst_op)
+            } else if src_op.is_memory() {
+                Some(src_op)
+            } else {
+                None
+            };
+
             let modrm_reg = if let Some(opcode_ext) = instr_repr.opcode_extension {
                 opcode_ext
             } else {
-                src_op.reg_num().unwrap()
+                if !src_op.is_memory() {
+                    src_op.reg_num().unwrap()
+                } else {
+                    dst_op.reg_num().unwrap()
+                }
             };
 
-            if let Operand::Memory {
+            if let Some(Operand::Memory {
                 displacement,
                 base,
                 index,
                 scale,
                 ..
-            } = dst_op
+            }) = memory_op
             {
-                let (modifier, displacement) = match displacement {
+                let (base, index, is_disp32) = match (base.is_some(), index.is_some(), scale) {
+                    (true, _, _) => (base, index, false),
+                    (false, true, Scale::Byte) => (index, base, false),
+                    (false, false, _) => {
+                        // disp32 case
+                        (base, index, true)
+                    }
+                    _ => (base, index, false),
+                };
+
+                let (modifier, displacement) = match (is_disp32, displacement) {
+                    // In GNU as, expressions with missing base and index registers with no
+                    // displacement are the same as a 32-bit displacement of 0 (e.g. movb $0x2,(,2)
+                    // is the same as movb $0x2, 0)
+                    (true, v) => (0b00, Some(v.unwrap_or(0).to_le_bytes().to_vec())),
                     // disp8
-                    Some(v) if v.next_power_of_two() < 256 => {
+                    (false, Some(v)) if v.next_power_of_two() < 256 => {
                         (0b01, Some((*v as u8).to_le_bytes().to_vec()))
                     }
                     // disp32
-                    Some(v) => (0b10, Some(v.to_le_bytes().to_vec())),
-                    None => (0b00, None),
+                    (false, Some(v)) => (0b10, Some(v.to_le_bytes().to_vec())),
+                    (false, None) => (0b00, None),
                 };
 
-                let sib = match (base, index) {
-                    // TODO: mod = 00 for disp32 with no SIB
-                    (Some(_), None) => None,
-                    (Some(base), Some(index)) => {
-                        Some(sib(*scale as u8, **index as u8, sib_base(*base)))
-                    }
-                    (None, Some(index)) => Some(sib(*scale as u8, 0b100, sib_base(*index))),
-                    (None, None) => panic!("invalid SIB expression"), // TODO return error
-                };
-
+                let sib = maybe_sib(base.as_ref(), index.as_ref(), *scale, modifier);
                 let rm = if sib.is_some() {
                     0b100
                 } else {
-                    dst_op.reg_num().unwrap()
+                    base.map(|base| *base as u8).unwrap_or(0)
                 };
                 self.out.push(modrm(modifier, modrm_reg, rm));
 
@@ -181,6 +202,31 @@ impl Encoder {
 /// The value of the ModR/M byte.
 fn modrm(modifier: u8, reg: u8, rm: u8) -> u8 {
     ((modifier & 0b11) << 6) + ((reg & 0b111) << 3) + rm
+}
+
+/// Return the SIB byte for the base-index-scale addressing mode.
+///
+/// See Table 2-2. 32-Bit Addressing Forms with the ModR/M Byte.
+fn maybe_sib(
+    base: Option<&Register>,
+    index: Option<&Register>,
+    scale: Scale,
+    modifier: u8,
+) -> Option<u8> {
+    match (base, index, modifier) {
+        (Some(base), None, 0b00) if matches!(**base, RegisterNum::Rsp | RegisterNum::Rbp) => {
+            Some(sib(scale as u8, SIB_INDEX_NONE, sib_base(*base)))
+        }
+
+        (Some(base), None, modifier)
+            if (modifier == 0b01 || modifier == 0b10) && matches!(**base, RegisterNum::Rsp) =>
+        {
+            Some(sib(scale as u8, SIB_INDEX_NONE, sib_base(*base)))
+        }
+        (Some(_), None, _) => None,
+        (Some(base), Some(index), _) => Some(sib(scale as u8, **index as u8, sib_base(*base))),
+        _ => panic!("invalid SIB expression"),
+    }
 }
 
 /// Return the base field of the SIB byte for the specified base register.

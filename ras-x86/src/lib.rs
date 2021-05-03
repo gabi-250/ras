@@ -1,6 +1,7 @@
 pub mod assembler;
 pub mod encoder;
 pub mod instruction;
+pub mod operand;
 pub mod register;
 
 pub use ras_x86_repr as repr;
@@ -25,9 +26,10 @@ impl Default for Mode {
 #[cfg(test)]
 mod tests {
     use super::assembler::Assembler;
-    use super::instruction::{Immediate, Instruction, Operand, Scale};
+    use super::instruction::Instruction;
     use super::mnemonic::Mnemonic;
-    use super::register::{AL, AX, EAX, EBX, RAX, RBP, RBX, RCX};
+    use super::operand::{Immediate, Operand, Scale};
+    use super::register::{AL, AX, EAX, EBX, EDX, RAX, RBP, RBX, RCX, RDX, RSP};
 
     macro_rules! assert_encoding_eq {
         ($expected:expr, $opcode:ident, $($operands:expr),*) => {{
@@ -157,6 +159,22 @@ mod tests {
     }
 
     #[test]
+    fn mov_memory_indirect_rax() {
+        assert_encoding_eq!(
+            [0x48, 0x8b, 0b00_000_100, 0b00_101_011],
+            MOV,
+            Operand::Register(*RAX),
+            Operand::Memory {
+                segment_override: None,
+                base: Some(*RBX),
+                index: Some(*RBP),
+                scale: Scale::Byte,
+                displacement: None
+            }
+        );
+    }
+
+    #[test]
     fn mov_imm8_memory_indirect_with_displacement() {
         // XXX use the REX.X prefix to encode r15
         //   42 c6 04 3b 00          movb   $0x0,(%rbx,%r15,1)
@@ -173,6 +191,52 @@ mod tests {
                 displacement: Some(5),
             },
             Operand::Immediate(Immediate::Imm8(0x2))
+        );
+    }
+
+    #[test]
+    fn mov_memory_indirect_with_displacement_rax() {
+        assert_encoding_eq!(
+            [0x48, 0x8b, 0b01_000_100, 0b01_101_011, 5],
+            MOV,
+            Operand::Register(*RAX),
+            Operand::Memory {
+                segment_override: None,
+                base: Some(*RBX),
+                index: Some(*RBP),
+                scale: Scale::Word,
+                displacement: Some(5),
+            }
+        );
+    }
+
+    #[test]
+    fn xor_memory_indirect() {
+        assert_encoding_eq!(
+            [0x33, 0x54, 0x24, 0x10],
+            XOR,
+            Operand::Register(*EDX),
+            Operand::Memory {
+                segment_override: None,
+                base: Some(*RSP),
+                index: None,
+                scale: Scale::Byte,
+                displacement: Some(0x10),
+            }
+        );
+
+        // The SIB byte is not needed if the base register is RDX:
+        assert_encoding_eq!(
+            [0x33, 0x52, 0x10],
+            XOR,
+            Operand::Register(*EDX),
+            Operand::Memory {
+                segment_override: None,
+                base: Some(*RDX),
+                index: None,
+                scale: Scale::Byte,
+                displacement: Some(0x10),
+            }
         );
     }
 
