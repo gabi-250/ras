@@ -40,7 +40,7 @@ impl Encoder {
     pub(crate) fn encode(
         &mut self,
         repr: &InstructionRepr,
-        operands: Vec<Operand>,
+        operands: &[Operand],
     ) -> Result<(), RasError> {
         match operands.len() {
             0 => self.encode_no_operands(repr),

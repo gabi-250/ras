@@ -29,7 +29,7 @@ impl Instruction {
         Self { mnemonic, operands }
     }
 
-    pub fn encode(self, enc: &mut Encoder) -> RasResult<()> {
+    pub fn encode(&self, enc: &mut Encoder) -> RasResult<()> {
         let variants = (*INSTR_REPRS).get(&self.mnemonic).unwrap();
 
         // Find the best instruction encoding (always choose the encoding with the smallest operand
@@ -56,7 +56,7 @@ impl Instruction {
 
         enc.encode(
             inst_repr.ok_or(RasError::MissingInstructionRepr(self.mnemonic))?,
-            self.operands,
+            &self.operands,
         )?;
         Ok(())
     }

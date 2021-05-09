@@ -41,34 +41,33 @@ mod tests {
                 Mnemonic::$opcode,
                 vec![$($operands,)*]
             );
-            assert_eq!(&$expected[..], &Assembler::new_long(vec![instr]).assemble().unwrap());
+
+            let mut asm =  Assembler::new_long(vec![instr]);
+            asm.assemble().unwrap();
+            assert_eq!(&$expected[..], asm.dump_out());
         }}
     }
 
     #[test]
     fn add_reg_reg() {
-        let instrs = vec![
-            Instruction::new(
-                Mnemonic::ADD,
-                vec![Operand::Register(*RAX), Operand::Register(*RCX)],
-            ),
-            Instruction::new(
-                Mnemonic::ADD,
-                vec![Operand::Register(*RBX), Operand::Register(*RAX)],
-            ),
-        ];
+        assert_encoding_eq!(
+            [0x48, 0x01, 0xc8],
+            ADD,
+            Operand::Register(*RAX),
+            Operand::Register(*RCX)
+        );
 
-        assert_eq!(
-            vec![0x48, 0x01, 0xc8, 0x48, 0x01, 0xc3],
-            Assembler::new_long(instrs).assemble().unwrap()
+        assert_encoding_eq!(
+            [0x48, 0x01, 0xc3],
+            ADD,
+            Operand::Register(*RBX),
+            Operand::Register(*RAX)
         );
     }
 
     #[test]
     fn one_byte_nop() {
-        let instrs = vec![Instruction::new(Mnemonic::NOP, vec![])];
-
-        assert_eq!(vec![0x90], Assembler::new_long(instrs).assemble().unwrap());
+        assert_encoding_eq!([0x90], NOP,);
     }
 
     #[test]

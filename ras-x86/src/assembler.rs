@@ -2,8 +2,13 @@ use crate::encoder::Encoder;
 use crate::instruction::Instruction;
 use crate::{Mode, RasError, RasResult};
 
+use faerie::{ArtifactBuilder, Decl, Link, Reloc, SectionKind};
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+use std::fs::File;
+use std::path::Path;
+use std::str::FromStr;
+use target_lexicon::triple;
 
 pub type LabelId = usize;
 pub(crate) type InstructionPointer = usize;
@@ -25,19 +30,19 @@ impl Assembler {
         }
     }
 
-    pub fn assemble(mut self) -> RasResult<Vec<u8>> {
+    pub fn assemble(&mut self) -> RasResult<()> {
         assert_eq!(self.mode, Mode::Long);
 
         // XXX run a second pass an resolve labels
-        for item in self.items {
+        for item in &self.items {
             match item {
                 Item::Instruction(inst) => {
                     inst.encode(&mut self.encoder)?;
                 }
                 Item::Label(label) => {
-                    let entry = self.labels.entry(label);
+                    let entry = self.labels.entry(*label);
                     if matches!(entry, Entry::Occupied(_)) {
-                        return Err(RasError::DuplicateLabel(label));
+                        return Err(RasError::DuplicateLabel(*label));
                     } else {
                         entry.or_insert(self.encoder.instruction_pointer());
                     }
@@ -45,7 +50,26 @@ impl Assembler {
             }
         }
 
-        Ok(self.encoder.out)
+        Ok(())
+    }
+
+    pub fn dump_out(&self) -> &[u8] {
+        &self.encoder.out
+    }
+
+    pub fn write_obj(&self, file: impl AsRef<str>) -> RasResult<()> {
+        let mut obj = ArtifactBuilder::new(triple!("x86_64-unknown-unknown-unknown-elf"))
+            .name(file.as_ref().into())
+            .finish();
+        obj.declare_with(
+            ".text",
+            Decl::section(SectionKind::Text),
+            self.encoder.out.clone(),
+        )?;
+
+        let file = File::create(file.as_ref())?;
+        obj.write(file)?;
+        Ok(())
     }
 }
 
