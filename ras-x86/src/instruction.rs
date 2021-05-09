@@ -2,6 +2,8 @@ use crate::encoder::Encoder;
 use crate::operand::Operand;
 use crate::repr::instruction::InstructionRepr;
 use crate::repr::mnemonic::Mnemonic;
+use crate::{RasError, RasResult};
+
 use lazy_static::lazy_static;
 use std::collections::HashMap;
 use std::fs;
@@ -27,7 +29,7 @@ impl Instruction {
         Self { mnemonic, operands }
     }
 
-    pub fn encode(self, enc: &mut Encoder) {
+    pub fn encode(self, enc: &mut Encoder) -> RasResult<()> {
         let variants = (*INSTR_REPRS).get(&self.mnemonic).unwrap();
 
         // Find the best instruction encoding (always choose the encoding with the smallest operand
@@ -53,9 +55,10 @@ impl Instruction {
             });
 
         enc.encode(
-            inst_repr.expect("instruction repr not found"),
+            inst_repr.ok_or(RasError::MissingInstructionRepr(self.mnemonic))?,
             self.operands,
-        );
+        )?;
+        Ok(())
     }
 
     /// Check if the operands can be encoded according to this `InstructionRepr`.
@@ -82,7 +85,7 @@ pub mod tests {
             Instruction::new(
                 Mnemonic::$opcode,
                 vec![$($operands,)*]
-            ).encode(&mut enc);
+            ).encode(&mut enc).unwrap();
 
             enc.out
         }}

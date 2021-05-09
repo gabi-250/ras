@@ -1,11 +1,15 @@
 pub mod assembler;
 pub mod encoder;
+pub mod error;
 pub mod instruction;
 pub mod operand;
 pub mod register;
 
+pub use error::RasError;
 pub use ras_x86_repr as repr;
 pub use repr::mnemonic;
+
+pub type RasResult<T> = Result<T, RasError>;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum Mode {
@@ -37,7 +41,7 @@ mod tests {
                 Mnemonic::$opcode,
                 vec![$($operands,)*]
             );
-            assert_eq!(&$expected[..], &Assembler::new_long(vec![instr]).assemble());
+            assert_eq!(&$expected[..], &Assembler::new_long(vec![instr]).assemble().unwrap());
         }}
     }
 
@@ -56,7 +60,7 @@ mod tests {
 
         assert_eq!(
             vec![0x48, 0x01, 0xc8, 0x48, 0x01, 0xc3],
-            Assembler::new_long(instrs).assemble()
+            Assembler::new_long(instrs).assemble().unwrap()
         );
     }
 
@@ -64,7 +68,7 @@ mod tests {
     fn one_byte_nop() {
         let instrs = vec![Instruction::new(Mnemonic::NOP, vec![])];
 
-        assert_eq!(vec![0x90], Assembler::new_long(instrs).assemble());
+        assert_eq!(vec![0x90], Assembler::new_long(instrs).assemble().unwrap());
     }
 
     #[test]

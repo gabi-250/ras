@@ -42,7 +42,7 @@ fn generate_instruction_repr(inst_csv: impl AsRef<Path>) {
         use serde::{Serialize, Deserialize};
         use std::str::FromStr;
 
-        #[derive(Copy, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
+        #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
         pub enum Mnemonic {
             #(#variants),*
         }

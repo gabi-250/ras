@@ -1,3 +1,5 @@
+use crate::assembler::InstructionPointer;
+use crate::error::RasError;
 use crate::operand::{Immediate, Operand, Scale};
 use crate::register::{Register, RegisterNum};
 use crate::repr::instruction::InstructionRepr;
@@ -28,14 +30,18 @@ pub struct Encoder {
 }
 
 impl Encoder {
-    pub fn new(mode: Mode) -> Self {
+    pub(crate) fn new(mode: Mode) -> Self {
         Self {
             out: Default::default(),
             mode,
         }
     }
 
-    pub fn encode(&mut self, repr: &InstructionRepr, operands: Vec<Operand>) {
+    pub(crate) fn encode(
+        &mut self,
+        repr: &InstructionRepr,
+        operands: Vec<Operand>,
+    ) -> Result<(), RasError> {
         match operands.len() {
             0 => self.encode_no_operands(repr),
             1 => self.encode_1_operand(repr, &operands[0]),
@@ -44,24 +50,33 @@ impl Encoder {
         }
     }
 
-    pub fn encode_no_operands(&mut self, instr_repr: &InstructionRepr) {
+    pub(crate) fn encode_no_operands(
+        &mut self,
+        instr_repr: &InstructionRepr,
+    ) -> Result<(), RasError> {
         if let Some(rex_prefix) = instr_repr.rex_prefix {
             self.out.push(rex_prefix.into());
         }
 
         self.out.push(instr_repr.opcode);
+
+        Ok(())
     }
 
-    pub fn encode_1_operand(&mut self, _instr_repr: &InstructionRepr, _operand: &Operand) {
+    pub(crate) fn encode_1_operand(
+        &mut self,
+        _instr_repr: &InstructionRepr,
+        _operand: &Operand,
+    ) -> Result<(), RasError> {
         unimplemented!("single operand instruction");
     }
 
-    pub fn encode_2_operands(
+    pub(crate) fn encode_2_operands(
         &mut self,
         instr_repr: &InstructionRepr,
         dst_op: &Operand,
         src_op: &Operand,
-    ) {
+    ) -> Result<(), RasError> {
         // Encode prefixes
         if let Some(rex_prefix) = instr_repr.rex_prefix {
             self.out.push(rex_prefix.into());
@@ -132,7 +147,7 @@ impl Encoder {
                     (false, None) => (0b00, None),
                 };
 
-                let sib = maybe_sib(base.as_ref(), index.as_ref(), *scale, modifier);
+                let sib = maybe_sib(base.as_ref(), index.as_ref(), *scale, modifier)?;
                 let rm = if sib.is_some() {
                     0b100
                 } else {
@@ -158,6 +173,12 @@ impl Encoder {
         if let Some(imm) = src_op.immediate() {
             self.encode_imm(imm, src_op.size());
         }
+
+        Ok(())
+    }
+
+    pub(crate) fn instruction_pointer(&self) -> InstructionPointer {
+        self.out.len()
     }
 
     /// Check if the current instruction needs an operand-size prefix.
@@ -212,8 +233,8 @@ fn maybe_sib(
     index: Option<&Register>,
     scale: Scale,
     modifier: u8,
-) -> Option<u8> {
-    match (base, index, modifier) {
+) -> Result<Option<u8>, RasError> {
+    let sib = match (base, index, modifier) {
         (Some(base), None, 0b00) if matches!(**base, RegisterNum::Rsp | RegisterNum::Rbp) => {
             Some(sib(scale as u8, SIB_INDEX_NONE, sib_base(*base)))
         }
@@ -225,8 +246,10 @@ fn maybe_sib(
         }
         (Some(_), None, _) => None,
         (Some(base), Some(index), _) => Some(sib(scale as u8, **index as u8, sib_base(*base))),
-        _ => panic!("invalid SIB expression"),
-    }
+        _ => return Err(RasError::Encoding("invalid SIB expression".into())),
+    };
+
+    Ok(sib)
 }
 
 /// Return the base field of the SIB byte for the specified base register.
@@ -251,6 +274,6 @@ fn sib_base(reg: Register) -> u8 {
 ///   * The base field specifies the register number of the base register.
 ///
 /// See Table 2-3. 32-Bit Addressing Forms with the SIB Byte
-pub fn sib(scale: u8, index: u8, base: u8) -> u8 {
+fn sib(scale: u8, index: u8, base: u8) -> u8 {
     ((scale & 0b11) << 6) + ((index & 0b111) << 3) + base
 }
