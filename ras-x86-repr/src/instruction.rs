@@ -1,5 +1,6 @@
 use crate::operand::{OperandKind, OperandRepr};
 use crate::prefix::RexPrefix;
+use crate::Mode;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
@@ -10,6 +11,7 @@ pub struct InstructionRepr {
     pub rex_prefix: Option<RexPrefix>,
     pub opcode_extension: Option<u8>,
     pub operands: Vec<OperandRepr>,
+    pub modes: Vec<Mode>,
 }
 
 impl InstructionRepr {
@@ -19,6 +21,7 @@ impl InstructionRepr {
         rex_prefix: Option<&str>,
         opcode_extension: Option<u8>,
         operands: Vec<OperandRepr>,
+        modes: Vec<Mode>,
     ) -> Self {
         Self {
             opcode,
@@ -26,6 +29,7 @@ impl InstructionRepr {
             rex_prefix: rex_prefix.map(|prefix| RexPrefix::from_str(prefix).unwrap()),
             opcode_extension,
             operands,
+            modes,
         }
     }
 

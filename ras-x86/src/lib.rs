@@ -8,24 +8,9 @@ pub mod register;
 pub use error::RasError;
 pub use ras_x86_repr as repr;
 pub use repr::mnemonic;
+pub use repr::Mode;
 
 pub type RasResult<T> = Result<T, RasError>;
-
-#[derive(Debug, Copy, Clone, PartialEq)]
-pub enum Mode {
-    /// 16-bit real mode.
-    Real,
-    /// 32-bit protected mode.
-    Protected,
-    /// 64-bit long mode.
-    Long,
-}
-
-impl Default for Mode {
-    fn default() -> Self {
-        Self::Long
-    }
-}
 
 #[cfg(test)]
 mod tests {

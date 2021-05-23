@@ -22,9 +22,11 @@ pub struct Assembler {
 
 impl Assembler {
     pub fn new_long(items: Vec<impl Into<Item>>) -> Self {
+        let mode = Mode::Long;
+
         Self {
-            mode: Mode::Long,
-            encoder: Default::default(),
+            mode,
+            encoder: Encoder::new(mode),
             items: items.into_iter().map(Into::into).collect(),
             labels: Default::default(),
         }
@@ -35,18 +37,19 @@ impl Assembler {
 
         // XXX run a second pass an resolve labels
         for item in &self.items {
-            match item {
-                Item::Instruction(inst) => {
-                    inst.encode(&mut self.encoder)?;
+            if let Item::Label(label) = item {
+                let entry = self.labels.entry(*label);
+                if matches!(entry, Entry::Occupied(_)) {
+                    return Err(RasError::DuplicateLabel(*label));
+                } else {
+                    entry.or_insert(self.encoder.instruction_pointer());
                 }
-                Item::Label(label) => {
-                    let entry = self.labels.entry(*label);
-                    if matches!(entry, Entry::Occupied(_)) {
-                        return Err(RasError::DuplicateLabel(*label));
-                    } else {
-                        entry.or_insert(self.encoder.instruction_pointer());
-                    }
-                }
+            }
+        }
+
+        for item in &self.items {
+            if let Item::Instruction(inst) = item {
+                inst.encode(&mut self.encoder)?;
             }
         }
 

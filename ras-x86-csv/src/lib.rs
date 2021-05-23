@@ -14,6 +14,13 @@ lazy_static! {
     pub static ref OPCODE_EXT_RE: Regex = Regex::new(r"/(\d)").unwrap();
 }
 
+#[macro_export]
+macro_rules! get_header {
+    ($rec:expr, $hdr:ident) => {
+        $rec.get($crate::CsvHeader::$hdr as usize).unwrap()
+    };
+}
+
 #[allow(unused)]
 #[repr(u8)]
 pub enum CsvHeader {

@@ -2,6 +2,7 @@ use ras_x86_csv::*;
 use ras_x86_repr::instruction::InstructionRepr;
 use ras_x86_repr::mnemonic::Mnemonic;
 use ras_x86_repr::operand::{OperandKind, OperandRepr};
+use ras_x86_repr::Mode;
 use std::collections::HashMap;
 use std::fs::{self, File};
 use std::path::Path;
@@ -25,19 +26,26 @@ fn main() {
         if matches!(rec.get(CsvHeader::FeatureFlags as usize), Some(flags) if !flags.is_empty()) {
             continue;
         }
-        let (opcode, opcode_ext, rex_prefix) =
-            parse_instr(rec.get(CsvHeader::Opcode as usize).unwrap());
-        let (mnemonic, size1, size2, size3, size4) =
-            parse_mnemonic(rec.get(CsvHeader::Instruction as usize).unwrap());
 
-        let operand_encoding1 =
-            build_operand_enc(rec.get(CsvHeader::Operand1 as usize).unwrap(), size1);
-        let operand_encoding2 =
-            build_operand_enc(rec.get(CsvHeader::Operand2 as usize).unwrap(), size2);
-        let operand_encoding3 =
-            build_operand_enc(rec.get(CsvHeader::Operand3 as usize).unwrap(), size3);
-        let operand_encoding4 =
-            build_operand_enc(rec.get(CsvHeader::Operand4 as usize).unwrap(), size4);
+        let (opcode, opcode_ext, rex_prefix) = parse_instr(get_header!(rec, Opcode));
+        let (mnemonic, size1, size2, size3, size4) = parse_mnemonic(get_header!(rec, Instruction));
+        let operand_encoding1 = build_operand_enc(get_header!(rec, Operand1), size1);
+        let operand_encoding2 = build_operand_enc(get_header!(rec, Operand2), size2);
+        let operand_encoding3 = build_operand_enc(get_header!(rec, Operand3), size3);
+        let operand_encoding4 = build_operand_enc(get_header!(rec, Operand4), size4);
+
+        let mut modes = vec![];
+        if is_valid_mode(get_header!(rec, Valid16)) {
+            modes.push(Mode::Real);
+        }
+
+        if is_valid_mode(get_header!(rec, Valid32)) {
+            modes.push(Mode::Protected);
+        }
+
+        if is_valid_mode(get_header!(rec, Valid64)) {
+            modes.push(Mode::Long);
+        }
 
         let mnemonic = Mnemonic::from_str(&mnemonic).unwrap();
         let operands = vec![
@@ -50,7 +58,7 @@ fn main() {
         .filter_map(|op| op)
         .collect();
 
-        let instr = InstructionRepr::new(opcode, false, rex_prefix, opcode_ext, operands);
+        let instr = InstructionRepr::new(opcode, false, rex_prefix, opcode_ext, operands, modes);
 
         instrs.entry(mnemonic).or_default().push(instr);
     }
@@ -87,4 +95,8 @@ pub fn build_operand_enc(operand: &str, size: u32) -> Option<OperandRepr> {
     } else {
         unimplemented!("operand mode for {}", operand);
     }
+}
+
+pub fn is_valid_mode(mode_rec: &str) -> bool {
+    mode_rec == "Valid"
 }

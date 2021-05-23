@@ -29,14 +29,16 @@ impl Instruction {
         Self { mnemonic, operands }
     }
 
-    pub fn encode(&self, enc: &mut Encoder) -> RasResult<()> {
+    pub(crate) fn encode(&self, enc: &mut Encoder) -> RasResult<()> {
         let variants = (*INSTR_REPRS).get(&self.mnemonic).unwrap();
 
         // Find the best instruction encoding (always choose the encoding with the smallest operand
         // sizes).
         let inst_repr = variants
             .into_iter()
-            .filter(|variant| Self::matches(variant, &self.operands))
+            .filter(|variant| {
+                variant.modes.contains(&enc.mode) && Self::matches(variant, &self.operands)
+            })
             .reduce(|inst_a, inst_b| {
                 let mut found_better = false;
                 for (op_repr_a, op_repr_b) in inst_a.operands.iter().zip(inst_b.operands.iter()) {
@@ -62,7 +64,7 @@ impl Instruction {
     }
 
     /// Check if the operands can be encoded according to this `InstructionRepr`.
-    pub fn matches(repr: &InstructionRepr, operands: &[Operand]) -> bool {
+    pub(crate) fn matches(repr: &InstructionRepr, operands: &[Operand]) -> bool {
         if repr.operands.len() != operands.len() {
             return false;
         }

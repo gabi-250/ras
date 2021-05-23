@@ -24,9 +24,9 @@ macro_rules! sext {
 }
 
 #[derive(Default)]
-pub struct Encoder {
+pub(crate) struct Encoder {
     pub out: Vec<u8>,
-    mode: Mode,
+    pub mode: Mode,
 }
 
 impl Encoder {
