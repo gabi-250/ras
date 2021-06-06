@@ -29,7 +29,9 @@ fn generate_instruction_repr(inst_csv: impl AsRef<Path>) {
         mnemonics.insert(mnemonic);
     }
 
-    let mnemonics = mnemonics.into_iter().collect::<Vec<_>>();
+    let mut mnemonics = mnemonics.into_iter().collect::<Vec<_>>();
+    mnemonics.sort();
+
     let variants = mnemonics
         .iter()
         .map(|mnemonic| mnemonic.parse::<TokenStream>().unwrap())
