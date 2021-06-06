@@ -13,7 +13,6 @@ const INST_MAP: &str = "bin/map";
 
 fn main() {
     let inst_csv = Path::new(env!("CARGO_MANIFEST_DIR")).join(INST_CSV);
-    println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed={}", inst_csv.to_str().unwrap());
 
     let mut rdr = csv::Reader::from_reader(File::open(inst_csv).unwrap());

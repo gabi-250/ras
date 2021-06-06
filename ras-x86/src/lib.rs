@@ -1,4 +1,5 @@
 pub mod assembler;
+pub mod context;
 pub mod encoder;
 pub mod error;
 pub mod instruction;

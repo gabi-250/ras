@@ -9,7 +9,6 @@ const INST_CSV: &str = "../ras-x86-csv/x86-csv/x86.csv";
 
 fn main() {
     let inst_csv = Path::new(env!("CARGO_MANIFEST_DIR")).join(INST_CSV);
-    println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed={}", inst_csv.to_str().unwrap());
     generate_instruction_repr(inst_csv);
 }
