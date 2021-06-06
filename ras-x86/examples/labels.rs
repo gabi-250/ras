@@ -16,7 +16,7 @@ fn main() -> RasResult<()> {
         args.skip(1).next().unwrap()
     };
 
-    let instrs = vec![
+    let insts = vec![
         Item::Label(1),
         Item::Instruction(Instruction::new(
             Mnemonic::MOV,
@@ -29,7 +29,7 @@ fn main() -> RasResult<()> {
     ];
 
     let mut asm = Assembler::new_long(
-        instrs,
+        insts,
         vec![(1, Label::global(1, "test".into()))]
             .into_iter()
             .collect(),

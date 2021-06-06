@@ -17,7 +17,7 @@ fn main() {
 
     let mut rdr = csv::Reader::from_reader(File::open(inst_csv).unwrap());
 
-    let mut instrs: HashMap<Mnemonic, Vec<InstructionRepr>> = Default::default();
+    let mut insts: HashMap<Mnemonic, Vec<InstructionRepr>> = Default::default();
     for rec in rdr.records() {
         let rec = rec.unwrap();
 
@@ -59,11 +59,14 @@ fn main() {
 
         let instr = InstructionRepr::new(opcode, false, rex_prefix, opcode_ext, operands, modes);
 
-        instrs.entry(mnemonic).or_default().push(instr);
+        insts.entry(mnemonic).or_default().push(instr);
     }
 
+    let mut insts = insts.into_iter().collect::<Vec<(_, _)>>();
+    insts.sort_by_key(|inst| inst.0);
+
     let inst_map = Path::new(env!("CARGO_MANIFEST_DIR")).join(INST_MAP);
-    fs::write(inst_map, bincode::serialize(&instrs).unwrap()).unwrap();
+    fs::write(inst_map, bincode::serialize(&insts).unwrap()).unwrap();
 }
 
 pub fn build_operand_enc(operand: &str, size: u32) -> Option<OperandRepr> {
