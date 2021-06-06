@@ -76,7 +76,7 @@ impl Assembler {
                 .ok_or(RasError::UnknownLabel(*label_id))?;
             let sym = Symbol {
                 name: label.name().as_bytes().to_vec(),
-                value: *index as u64,
+                value: *index,
                 kind: SymbolKind::Label,
                 scope: SymbolScope::Dynamic, // XXX
                 weak: false,

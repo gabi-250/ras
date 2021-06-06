@@ -178,7 +178,7 @@ impl Encoder {
     }
 
     pub(crate) fn instruction_pointer(&self) -> InstructionPointer {
-        self.out.len()
+        self.out.len() as u64
     }
 
     /// Check if the current instruction needs an operand-size prefix.

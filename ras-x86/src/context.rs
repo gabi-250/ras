@@ -1,7 +1,7 @@
 use std::ops::Deref;
 
-pub type LabelId = usize;
-pub type InstructionPointer = usize;
+pub type LabelId = u64;
+pub type InstructionPointer = u64;
 
 #[derive(Debug, Clone)]
 pub struct Label {
