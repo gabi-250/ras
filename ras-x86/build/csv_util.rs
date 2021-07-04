@@ -1,5 +1,8 @@
 use lazy_static::lazy_static;
+use ras_x86_repr::prefix::RexPrefix;
 use regex::Regex;
+
+use std::str::FromStr;
 
 lazy_static! {
     pub static ref MODRM_REG_RE: Regex = Regex::new("ModRM:reg").unwrap();
@@ -85,37 +88,72 @@ pub fn operand_size(op: &str) -> u32 {
 }
 
 /// Return (opcode, opcode_extension, REX prefix).
-pub fn parse_instr(instr: &str) -> (u8, Option<u8>, Option<&str>) {
-    let mut instr = instr.split(" ");
-    let mut opcode = 0;
-    let mut opcode_ext = None;
+pub fn parse_opcode_column(inst: &str) -> (u8, Option<u8>, Option<RexPrefix>) {
+    let orig = inst.clone();
+    let (rex_prefix, _np_prefix, inst) = parse_prefixes(inst);
+    let mut inst = inst.split(" ");
+
+    let opcode = match inst.next() {
+        Some(op) => {
+            if u8::from_str_radix(op, 16).is_err() {
+                println!("inst {}", orig);
+            }
+            u8::from_str_radix(op, 16).unwrap()
+        }
+        None => panic!("missing opcode"),
+    };
+
+    let opcode_ext = inst
+        .next()
+        .map(|opcode_ext| {
+            if let Some(caps) = OPCODE_EXT_RE.captures(opcode_ext) {
+                caps.get(1)
+                    .map(|op| u8::from_str_radix(op.as_str(), 16).unwrap())
+            } else {
+                None
+            }
+        })
+        .flatten();
+
+    (opcode, opcode_ext, rex_prefix)
+}
+
+fn parse_prefixes(inst: &str) -> (Option<RexPrefix>, bool, &str) {
+    let mut np_prefix = false;
+
+    let inst = if inst.starts_with("NP ") {
+        np_prefix = true;
+        inst.trim_start_matches("NP ")
+    } else {
+        inst
+    };
+
+    let (prefix_info, opcodes) = if let Some((prefix_info, opcodes)) = inst.split_once(" + ") {
+        (prefix_info, opcodes)
+    } else {
+        return (None, false, inst);
+    };
+
+    if opcodes.is_empty() {
+        panic!("invalid opcode column");
+    }
+
     let mut rex_prefix = None;
 
-    loop {
-        match instr.next() {
-            Some(op) if u8::from_str_radix(op, 16).is_ok() => {
-                opcode = u8::from_str_radix(op, 16).unwrap();
+    let mut prefixes = prefix_info.split(" ");
 
-                if let Some(maybe_opcode_ext) = instr.next() {
-                    if let Some(caps) = OPCODE_EXT_RE.captures(maybe_opcode_ext) {
-                        opcode_ext = caps
-                            .get(1)
-                            .map(|op| u8::from_str_radix(op.as_str(), 16).unwrap());
-                    }
+    while let Some(prefix) = prefixes.next() {
+        match prefix {
+            "NP" => np_prefix = true,
+            prefix => {
+                if matches!(prefix, "REX.W" | "REX.R" | "REX") {
+                    rex_prefix = Some(RexPrefix::from_str(prefix).unwrap());
+                } else {
+                    panic!("unknown prefix: {}", prefix);
                 }
-
-                continue;
             }
-            Some(prefix) if prefix.starts_with("REX") => {
-                rex_prefix = Some(prefix);
-
-                continue;
-            }
-            Some("+") => continue,
-            None => break,
-            _ => continue, // XXX
         }
     }
 
-    (opcode, opcode_ext, rex_prefix)
+    (rex_prefix, np_prefix, opcodes)
 }

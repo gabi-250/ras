@@ -30,7 +30,7 @@ fn main() {
             continue;
         }
 
-        let (opcode, opcode_ext, rex_prefix) = parse_instr(get_header!(rec, Opcode));
+        let (opcode, opcode_extension, rex_prefix) = parse_opcode_column(get_header!(rec, Opcode));
         let (mnemonic, size1, size2, size3, size4) = parse_mnemonic(get_header!(rec, Instruction));
         let operand_encoding1 = build_operand_enc(get_header!(rec, Operand1), size1);
         let operand_encoding2 = build_operand_enc(get_header!(rec, Operand2), size2);
@@ -60,7 +60,15 @@ fn main() {
         .filter_map(|op| op)
         .collect();
 
-        let instr = InstructionRepr::new(opcode, false, rex_prefix, opcode_ext, operands, modes);
+        let instr = InstructionRepr {
+            opcode,
+            sib: false,
+            rex_prefix,
+            opcode_extension,
+            operands,
+            is_np: false,
+            modes,
+        };
 
         insts.entry(mnemonic.clone()).or_default().push(instr);
         mnemonics.insert(mnemonic);

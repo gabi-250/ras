@@ -1,8 +1,8 @@
 use crate::operand::{OperandKind, OperandRepr};
 use crate::prefix::RexPrefix;
 use crate::Mode;
+
 use serde::{Deserialize, Serialize};
-use std::str::FromStr;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct InstructionRepr {
@@ -11,28 +11,15 @@ pub struct InstructionRepr {
     pub rex_prefix: Option<RexPrefix>,
     pub opcode_extension: Option<u8>,
     pub operands: Vec<OperandRepr>,
+    /// According to the "Intel 64 and IA-32 Architectures Software Developer's Manual": "Indicates
+    /// the use of 66/F2/F3 prefixes (beyond those already part of the instructions opcode) are not
+    /// allowed with the instruction. Such use will either cause an invalid-opcode exception (#UD)
+    /// or result in the encoding for a different instruction."
+    pub is_np: bool,
     pub modes: Vec<Mode>,
 }
 
 impl InstructionRepr {
-    pub fn new(
-        opcode: u8,
-        sib: bool,
-        rex_prefix: Option<&str>,
-        opcode_extension: Option<u8>,
-        operands: Vec<OperandRepr>,
-        modes: Vec<Mode>,
-    ) -> Self {
-        Self {
-            opcode,
-            sib,
-            rex_prefix: rex_prefix.map(|prefix| RexPrefix::from_str(prefix).unwrap()),
-            opcode_extension,
-            operands,
-            modes,
-        }
-    }
-
     pub fn has_modrm(&self) -> bool {
         self.operands
             .iter()
