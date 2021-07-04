@@ -1,6 +1,6 @@
 use crate::assembler::InstructionPointer;
 use crate::error::RasError;
-use crate::operand::{Immediate, Operand, Scale};
+use crate::operand::{Immediate, Memory, Operand, Scale};
 use crate::register::{Register, RegisterNum};
 use crate::repr::instruction::InstructionRepr;
 use crate::repr::prefix::OPERAND_SIZE_PREFIX;
@@ -115,13 +115,13 @@ impl Encoder {
                 }
             };
 
-            if let Some(Operand::Memory {
+            if let Some(Operand::Memory(Memory::Sib {
                 displacement,
                 base,
                 index,
                 scale,
                 ..
-            }) = memory_op
+            })) = memory_op
             {
                 let (base, index, is_disp32) = match (base.is_some(), index.is_some(), scale) {
                     (true, _, _) => (base, index, false),
@@ -186,8 +186,8 @@ impl Encoder {
     /// An operand-size prefix overrides the default operand-size for a particular instruction. In
     /// 64-bit (long) mode, the default operand size is 32 bits.
     ///
-    /// According the to Intel manual, this is how the effective operand size is affected by the REX.W
-    /// and operand-size prefixes:
+    /// According the to Intel manual, this is how the effective operand size is affected by the
+    /// REX.W and operand-size prefixes:
     ///
     /// REX.W Prefix            |0  |0  |0  |0  |1  |1  |1  |1
     /// Operand-Size Prefix     |N  |N  |Y  |Y  |N  |N  |Y  |Y

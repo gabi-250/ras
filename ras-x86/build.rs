@@ -87,7 +87,7 @@ pub fn build_operand_enc(operand: &str, size: u32) -> Option<OperandRepr> {
     } else if OPCODE_RD_RE.is_match(operand) {
         return Some(OperandRepr::new(OperandKind::OpcodeRd, size));
     } else if MOFFS_RE.is_match(operand) {
-        return Some(OperandRepr::new(OperandKind::MemoryOffset, size));
+        return Some(OperandRepr::new(OperandKind::Moffs, size));
     } else if operand == "1" {
         return Some(OperandRepr::new(OperandKind::One, size)); // XXX
     } else if operand == "CL" {

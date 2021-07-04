@@ -18,7 +18,7 @@ mod tests {
     use super::assembler::Assembler;
     use super::instruction::Instruction;
     use super::mnemonic::Mnemonic;
-    use super::operand::{Immediate, Operand, Scale};
+    use super::operand::{Immediate, Memory, Operand, Scale};
     use super::register::{AL, AX, EAX, EBX, EDX, RAX, RBP, RBX, RCX, RDX, RSP};
 
     macro_rules! assert_encoding_eq {
@@ -136,13 +136,7 @@ mod tests {
         assert_encoding_eq!(
             [0xc6, 0b00_000_100, 0b00_101_011, 2],
             MOV,
-            Operand::Memory {
-                segment_override: None,
-                base: Some(*RBX),
-                index: Some(*RBP),
-                scale: Scale::Byte,
-                displacement: None
-            },
+            Operand::Memory(Memory::sib(None, Some(*RBX), Some(*RBP), Scale::Byte, None)),
             Operand::Immediate(Immediate::Imm8(0x2))
         );
     }
@@ -153,13 +147,7 @@ mod tests {
             [0x48, 0x8b, 0b00_000_100, 0b00_101_011],
             MOV,
             Operand::Register(*RAX),
-            Operand::Memory {
-                segment_override: None,
-                base: Some(*RBX),
-                index: Some(*RBP),
-                scale: Scale::Byte,
-                displacement: None
-            }
+            Operand::Memory(Memory::sib(None, Some(*RBX), Some(*RBP), Scale::Byte, None))
         );
     }
 
@@ -172,13 +160,13 @@ mod tests {
             [0xc6, 0b01_000_100, 0b01_101_011, 5, 2],
             MOV,
             //  c6 44 2b 05 02          movb   $0x2,0x5(%rbx,%rbp,1)
-            Operand::Memory {
-                segment_override: None,
-                base: Some(*RBX),
-                index: Some(*RBP),
-                scale: Scale::Word,
-                displacement: Some(5),
-            },
+            Operand::Memory(Memory::sib(
+                None,
+                Some(*RBX),
+                Some(*RBP),
+                Scale::Word,
+                Some(5),
+            )),
             Operand::Immediate(Immediate::Imm8(0x2))
         );
     }
@@ -189,13 +177,13 @@ mod tests {
             [0x48, 0x8b, 0b01_000_100, 0b01_101_011, 5],
             MOV,
             Operand::Register(*RAX),
-            Operand::Memory {
-                segment_override: None,
-                base: Some(*RBX),
-                index: Some(*RBP),
-                scale: Scale::Word,
-                displacement: Some(5),
-            }
+            Operand::Memory(Memory::sib(
+                None,
+                Some(*RBX),
+                Some(*RBP),
+                Scale::Word,
+                Some(5),
+            ))
         );
     }
 
@@ -205,13 +193,7 @@ mod tests {
             [0x33, 0x54, 0x24, 0x10],
             XOR,
             Operand::Register(*EDX),
-            Operand::Memory {
-                segment_override: None,
-                base: Some(*RSP),
-                index: None,
-                scale: Scale::Byte,
-                displacement: Some(0x10),
-            }
+            Operand::Memory(Memory::sib(None, Some(*RSP), None, Scale::Byte, Some(0x10),))
         );
 
         // The SIB byte is not needed if the base register is RDX:
@@ -219,13 +201,7 @@ mod tests {
             [0x33, 0x52, 0x10],
             XOR,
             Operand::Register(*EDX),
-            Operand::Memory {
-                segment_override: None,
-                base: Some(*RDX),
-                index: None,
-                scale: Scale::Byte,
-                displacement: Some(0x10),
-            }
+            Operand::Memory(Memory::sib(None, Some(*RDX), None, Scale::Byte, Some(0x10),))
         );
     }
 

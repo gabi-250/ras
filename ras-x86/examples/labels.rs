@@ -1,5 +1,4 @@
 use ras_x86::assembler::{Assembler, Item};
-use ras_x86::context::Label;
 use ras_x86::instruction::Instruction;
 use ras_x86::mnemonic::Mnemonic;
 use ras_x86::operand::{Immediate, Operand};
@@ -17,7 +16,7 @@ fn main() -> RasResult<()> {
     };
 
     let insts = vec![
-        Item::Label(1),
+        Item::Label("my_label".to_string()),
         Item::Instruction(Instruction::new(
             Mnemonic::MOV,
             vec![
@@ -28,12 +27,7 @@ fn main() -> RasResult<()> {
         Item::Instruction(Instruction::new(Mnemonic::RET, vec![])),
     ];
 
-    let mut asm = Assembler::new_long(
-        insts,
-        vec![(1, Label::global(1, "test".into()))]
-            .into_iter()
-            .collect(),
-    );
+    let mut asm = Assembler::new_long(insts);
     asm.assemble()?;
     asm.write_obj(out_file)?;
 

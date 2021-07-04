@@ -1,45 +1,38 @@
 use std::ops::Deref;
 
-pub type LabelId = u64;
+pub type SymbolId = String;
 pub type InstructionPointer = u64;
 
 #[derive(Debug, Clone)]
-pub struct Label {
-    id: LabelId,
-    name: String,
+pub struct Symbol {
+    ty: SymbolType,
     is_global: bool,
 }
 
-impl Label {
-    pub fn global(id: LabelId, name: String) -> Self {
+#[derive(Debug, Copy, Clone)]
+pub enum SymbolType {
+    Byte,
+    Word,
+    Double,
+    Quad,
+}
+
+impl Symbol {
+    pub fn global(ty: SymbolType) -> Self {
         Self {
-            id,
-            name,
+            ty,
             is_global: true,
         }
     }
 
-    pub fn local(id: LabelId, name: String) -> Self {
+    pub fn local(ty: SymbolType) -> Self {
         Self {
-            id,
-            name,
+            ty,
             is_global: false,
         }
     }
 
     pub fn is_global(&self) -> bool {
         self.is_global
-    }
-
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-}
-
-impl Deref for Label {
-    type Target = LabelId;
-
-    fn deref(&self) -> &Self::Target {
-        &self.id
     }
 }

@@ -1,4 +1,4 @@
-use crate::assembler::LabelId;
+use crate::context::SymbolId;
 use crate::repr::mnemonic::Mnemonic;
 
 use object::write;
@@ -9,8 +9,8 @@ use std::io;
 #[derive(Debug)]
 pub enum RasError {
     Encoding(String),
-    DuplicateLabel(LabelId),
-    UnknownLabel(LabelId),
+    DuplicateLabel(SymbolId),
+    UnknownLabel(SymbolId),
     MissingInstructionRepr(Mnemonic),
     Object(write::Error),
     Io(io::Error),

@@ -1,4 +1,3 @@
-use crate::context::Label;
 use crate::encoder::Encoder;
 use crate::instruction::Instruction;
 use crate::{Mode, RasError, RasResult};
@@ -12,26 +11,24 @@ use object::endian::Endianness;
 use object::write::{Object, StandardSection, Symbol, SymbolSection};
 use object::{Architecture, BinaryFormat, SymbolFlags, SymbolKind, SymbolScope};
 
-pub use crate::context::{InstructionPointer, LabelId};
+pub use crate::context::{InstructionPointer, SymbolId};
 
 pub struct Assembler {
     mode: Mode,
     encoder: Encoder,
     items: Vec<Item>,
-    labels: HashMap<LabelId, Label>,
-    label_ptrs: HashMap<LabelId, InstructionPointer>,
+    sym_tab: HashMap<SymbolId, InstructionPointer>,
 }
 
 impl Assembler {
-    pub fn new_long(items: Vec<impl Into<Item>>, labels: HashMap<LabelId, Label>) -> Self {
+    pub fn new_long(items: Vec<impl Into<Item>>) -> Self {
         let mode = Mode::Long;
 
         Self {
             mode,
             encoder: Encoder::new(mode),
             items: items.into_iter().map(Into::into).collect(),
-            labels,
-            label_ptrs: Default::default(),
+            sym_tab: Default::default(),
         }
     }
 
@@ -40,9 +37,9 @@ impl Assembler {
 
         for item in &self.items {
             if let Item::Label(label) = item {
-                let entry = self.label_ptrs.entry(*label);
+                let entry = self.sym_tab.entry(label.to_string());
                 if matches!(entry, Entry::Occupied(_)) {
-                    return Err(RasError::DuplicateLabel(*label));
+                    return Err(RasError::DuplicateLabel(label.to_string()));
                 } else {
                     entry.or_insert(self.encoder.instruction_pointer());
                 }
@@ -69,14 +66,14 @@ impl Assembler {
         let text_section_id = obj.section_id(StandardSection::Text);
         obj.append_section_data(text_section_id, &self.encoder.out, ALIGN);
 
-        for (label_id, index) in &self.label_ptrs {
+        for (sym_id, sym) in &self.sym_tab {
             let label = self
-                .labels
-                .get(label_id)
-                .ok_or(RasError::UnknownLabel(*label_id))?;
+                .sym_tab
+                .get(sym_id)
+                .ok_or(RasError::UnknownLabel(sym_id.to_string()))?;
             let sym = Symbol {
-                name: label.name().as_bytes().to_vec(),
-                value: *index,
+                name: sym_id.as_bytes().to_vec(),
+                value: 0, // XXX
                 kind: SymbolKind::Label,
                 scope: SymbolScope::Dynamic, // XXX
                 weak: false,
@@ -93,7 +90,7 @@ impl Assembler {
 }
 
 pub enum Item {
-    Label(LabelId),
+    Label(SymbolId),
     Instruction(Instruction),
 }
 
@@ -103,8 +100,8 @@ impl From<Instruction> for Item {
     }
 }
 
-impl From<LabelId> for Item {
-    fn from(label: LabelId) -> Item {
+impl From<SymbolId> for Item {
+    fn from(label: SymbolId) -> Item {
         Item::Label(label)
     }
 }

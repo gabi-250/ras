@@ -25,7 +25,7 @@ pub enum OperandKind {
     /// imm8/16/32
     Imm,
     /// Moffs
-    MemoryOffset,
+    Moffs,
     /// AL/AX/EAX/RAX
     Al,
     /// opcode + rd

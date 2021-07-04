@@ -1,3 +1,4 @@
+pub use crate::context::SymbolId;
 use crate::register::{Register, RegisterNum};
 use crate::repr::operand::{OperandKind, OperandRepr};
 
@@ -5,7 +6,12 @@ use crate::repr::operand::{OperandKind, OperandRepr};
 pub enum Operand {
     Register(Register),
     Immediate(Immediate),
-    Memory {
+    Memory(Memory),
+}
+
+#[derive(Debug, Clone)]
+pub enum Memory {
+    Sib {
         /// XXX
         segment_override: Option<Register>,
         /// Any GPR.
@@ -17,6 +23,72 @@ pub enum Operand {
         /// An 8-, 16-, or 32-bit value.
         displacement: Option<u64>,
     },
+    Relative(MemoryRel),
+    /// Only valid for MOV instructions
+    Moffs(Moffs),
+}
+
+#[derive(Debug, Clone)]
+pub enum MemoryRel {
+    Immediate(Immediate),
+    Label(SymbolId),
+}
+
+impl Memory {
+    pub fn sib(
+        segment_override: Option<Register>,
+        base: Option<Register>,
+        index: Option<Register>,
+        scale: Scale,
+        displacement: Option<u64>,
+    ) -> Self {
+        Self::Sib {
+            segment_override,
+            base,
+            index,
+            scale,
+            displacement,
+        }
+    }
+
+    pub fn relative(mem_rel: MemoryRel) -> Self {
+        Self::Relative(mem_rel)
+    }
+
+    pub fn moffs(moffs: Moffs) -> Self {
+        Self::Moffs(moffs)
+    }
+
+    pub fn is_sib(&self) -> bool {
+        matches!(&self, Memory::Sib { .. })
+    }
+
+    pub fn is_relative(&self) -> bool {
+        matches!(&self, Memory::Relative(_))
+    }
+
+    pub fn is_moffs(&self) -> bool {
+        matches!(&self, Memory::Moffs(_))
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+pub enum Moffs {
+    Moffs8(u8),
+    Moffs16(u16),
+    Moffs32(u32),
+    Moffs64(u64),
+}
+
+impl Moffs {
+    pub fn size(&self) -> u32 {
+        match self {
+            Self::Moffs8(_) => 8,
+            Self::Moffs16(_) => 16,
+            Self::Moffs32(_) => 32,
+            Self::Moffs64(_) => 64,
+        }
+    }
 }
 
 /// The scale used in a SIB expression.
@@ -38,7 +110,7 @@ impl Operand {
     }
 
     pub fn is_memory(&self) -> bool {
-        matches!(self, Operand::Memory { .. })
+        matches!(self, Operand::Memory(_))
     }
 
     pub fn reg_num(&self) -> Option<u8> {
@@ -86,13 +158,14 @@ impl Operand {
             }
         }
 
-        return matches!(
-            (self, op.kind),
-            (Operand::Memory { .. }, OperandKind::ModRmRegMem)
-                | (Operand::Register(_), OperandKind::ModRmRegMem)
-                | (Operand::Register(_), OperandKind::ModRmReg)
-                | (Operand::Immediate(_), OperandKind::Imm)
-        );
+        match (self, op.kind) {
+            (Operand::Register(_), OperandKind::ModRmRegMem)
+            | (Operand::Register(_), OperandKind::ModRmReg)
+            | (Operand::Immediate(_), OperandKind::Imm) => true,
+            (Operand::Memory(m), OperandKind::ModRmRegMem) if m.is_sib() || m.is_relative() => true,
+            (Operand::Memory(m), OperandKind::Moffs) if m.is_moffs() => true,
+            _ => false,
+        }
     }
 }
 
