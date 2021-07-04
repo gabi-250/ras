@@ -1,8 +1,9 @@
 use crate::encoder::Encoder;
+use crate::mnemonic::Mnemonic;
 use crate::operand::Operand;
 use crate::repr::instruction::InstructionRepr;
-use crate::repr::mnemonic::Mnemonic;
 use crate::{RasError, RasResult};
+use std::str::FromStr;
 
 use lazy_static::lazy_static;
 use std::collections::HashMap;
@@ -11,9 +12,13 @@ use std::path::Path;
 
 lazy_static! {
     pub static ref INSTR_REPRS: HashMap<Mnemonic, Vec<InstructionRepr>> = {
-        let inst_map = fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join("bin/map")).unwrap();
+        let inst_map = fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join("../bin/map")).unwrap();
 
-        bincode::deserialize(&inst_map).unwrap()
+        let map: HashMap<String, Vec<InstructionRepr>> = bincode::deserialize(&inst_map).unwrap();
+
+        map.into_iter()
+            .map(|(mnemonic, repr)| (Mnemonic::from_str(&mnemonic).unwrap(), repr))
+            .collect()
     };
 }
 

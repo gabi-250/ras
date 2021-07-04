@@ -204,6 +204,7 @@ impl Encoder {
         }
     }
 
+    #[allow(unused)]
     fn needs_address_size_prefix(&mut self, size: u32) -> bool {
         unimplemented!()
     }

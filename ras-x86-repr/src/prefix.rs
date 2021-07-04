@@ -4,8 +4,11 @@ use std::str::FromStr;
 /// REX bits: 0100WRXB
 const REX: u8 = 0b0100_0000;
 const REX_W: u8 = 0b0000_1000;
+#[allow(unused)]
 const REX_R: u8 = 0b0000_0100;
+#[allow(unused)]
 const REX_X: u8 = 0b0000_0010;
+#[allow(unused)]
 const REX_B: u8 = 0b0000_0001;
 
 pub const OPERAND_SIZE_PREFIX: u8 = 0x66;

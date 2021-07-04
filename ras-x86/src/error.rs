@@ -1,5 +1,5 @@
-use crate::context::SymbolId;
-use crate::repr::mnemonic::Mnemonic;
+use crate::mnemonic::Mnemonic;
+use crate::symbol::SymbolId;
 
 use object::write;
 use std::error::Error;

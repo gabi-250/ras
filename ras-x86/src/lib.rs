@@ -1,14 +1,15 @@
 pub mod assembler;
-pub mod context;
 pub mod encoder;
 pub mod error;
 pub mod instruction;
+pub mod mnemonic;
 pub mod operand;
 pub mod register;
+pub mod symbol;
 
 pub use error::RasError;
+pub use mnemonic::Mnemonic;
 pub use ras_x86_repr as repr;
-pub use repr::mnemonic;
 pub use repr::Mode;
 
 pub type RasResult<T> = Result<T, RasError>;

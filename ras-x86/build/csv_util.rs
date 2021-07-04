@@ -60,7 +60,13 @@ pub fn parse_mnemonic(mnemonic: &str) -> (String, u32, u32, u32, u32) {
     // There can't be more than 4 operands
     assert!(operands.next().is_none());
 
-    (mnemonic.to_string(), operand1, operand2, operand3, operand4)
+    (
+        mnemonic.to_uppercase().to_string(),
+        operand1,
+        operand2,
+        operand3,
+        operand4,
+    )
 }
 
 // XXX implement me

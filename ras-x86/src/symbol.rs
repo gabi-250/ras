@@ -1,5 +1,3 @@
-use std::ops::Deref;
-
 pub type SymbolId = String;
 pub type InstructionPointer = u64;
 

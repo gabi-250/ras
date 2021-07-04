@@ -3,15 +3,21 @@ name = "ras-x86"
 version = "0.1.0"
 authors = ["Gabriela Alexandra Moldovan <gabi_250@live.com>"]
 edition = "2018"
+build = "build/main.rs"
 
 [dependencies]
 ras-x86-repr = { path = "../ras-x86-repr" }
 lazy_static = "1.4.0"
 bincode = "1.3.2"
 object = { version = "0.25.2", features = ["write"] }
+serde = { version = "1.0", features = ["derive"] }
 
 [build-dependencies]
 ras-x86-repr = { path = "../ras-x86-repr" }
 csv = "1.1.5"
-ras-x86-csv = { path = "../ras-x86-csv" }
 bincode = "1.3.2"
+quote = "1.0.8"
+proc-macro2 = "1.0.24"
+syn = "1.0.60"
+regex = "1.4.3"
+lazy_static = "1.4.0"

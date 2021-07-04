@@ -14,4 +14,3 @@ csv = "1.1.5"
 quote = "1.0.8"
 proc-macro2 = "1.0.24"
 syn = "1.0.60"
-ras-x86-csv = { path = "../ras-x86-csv" }

@@ -1,6 +1,6 @@
-pub use crate::context::SymbolId;
 use crate::register::{Register, RegisterNum};
 use crate::repr::operand::{OperandKind, OperandRepr};
+pub use crate::symbol::SymbolId;
 
 #[derive(Debug, Clone)]
 pub enum Operand {

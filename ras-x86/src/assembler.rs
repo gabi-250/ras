@@ -11,7 +11,7 @@ use object::endian::Endianness;
 use object::write::{Object, StandardSection, Symbol, SymbolSection};
 use object::{Architecture, BinaryFormat, SymbolFlags, SymbolKind, SymbolScope};
 
-pub use crate::context::{InstructionPointer, SymbolId};
+pub use crate::symbol::{InstructionPointer, SymbolId};
 
 pub struct Assembler {
     mode: Mode,
@@ -66,11 +66,7 @@ impl Assembler {
         let text_section_id = obj.section_id(StandardSection::Text);
         obj.append_section_data(text_section_id, &self.encoder.out, ALIGN);
 
-        for (sym_id, sym) in &self.sym_tab {
-            let label = self
-                .sym_tab
-                .get(sym_id)
-                .ok_or(RasError::UnknownLabel(sym_id.to_string()))?;
+        for (sym_id, _sym) in &self.sym_tab {
             let sym = Symbol {
                 name: sym_id.as_bytes().to_vec(),
                 value: 0, // XXX

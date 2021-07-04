@@ -1,2 +1,2 @@
 [workspace]
-members = ["ras-x86", "ras-x86-repr", "ras-x86-csv"]
+members = ["ras-x86", "ras-x86-repr"]
