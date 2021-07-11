@@ -2,8 +2,7 @@ use crate::assembler::InstructionPointer;
 use crate::error::RasError;
 use crate::operand::{Immediate, Memory, Operand, Scale};
 use crate::register::{Register, RegisterNum};
-use crate::repr::instruction::InstructionRepr;
-use crate::repr::prefix::OPERAND_SIZE_PREFIX;
+use crate::repr::{InstructionRepr, Prefix};
 use crate::Mode;
 
 const SIB_INDEX_NONE: u8 = 0b100;
@@ -54,11 +53,11 @@ impl Encoder {
         &mut self,
         instr_repr: &InstructionRepr,
     ) -> Result<(), RasError> {
-        if let Some(rex_prefix) = instr_repr.rex_prefix {
+        if let Some(rex_prefix) = instr_repr.encoding.rex_prefix {
             self.out.push(rex_prefix.into());
         }
 
-        self.out.push(instr_repr.opcode);
+        self.out.extend(&instr_repr.encoding.opcode);
 
         Ok(())
     }
@@ -78,7 +77,7 @@ impl Encoder {
         src_op: &Operand,
     ) -> Result<(), RasError> {
         // Encode prefixes
-        if let Some(rex_prefix) = instr_repr.rex_prefix {
+        if let Some(rex_prefix) = instr_repr.encoding.rex_prefix {
             self.out.push(rex_prefix.into());
         }
 
@@ -91,10 +90,10 @@ impl Encoder {
         };
 
         if self.needs_operand_size_prefix(instr_repr, op_size) {
-            self.out.push(OPERAND_SIZE_PREFIX);
+            self.out.push(Prefix::OperandSize.into());
         }
 
-        self.out.push(instr_repr.opcode);
+        self.out.extend(&instr_repr.encoding.opcode);
 
         if instr_repr.has_modrm() {
             let memory_op = if dst_op.is_memory() {
@@ -105,7 +104,7 @@ impl Encoder {
                 None
             };
 
-            let modrm_reg = if let Some(opcode_ext) = instr_repr.opcode_extension {
+            let modrm_reg = if let Some(opcode_ext) = instr_repr.encoding.opcode_extension {
                 opcode_ext
             } else {
                 if !src_op.is_memory() {
@@ -195,7 +194,7 @@ impl Encoder {
     fn needs_operand_size_prefix(&mut self, instr_repr: &InstructionRepr, size: u32) -> bool {
         // The REX.W prefix takes precedence over the operand-size prefix, so if the instruction
         // already has a REX.W prefix, there's no need to add the operand-size prefix.
-        if instr_repr.rex_prefix.is_some() || !instr_repr.is_full_sized() {
+        if instr_repr.encoding.rex_prefix.is_some() || !instr_repr.is_full_sized() {
             return false;
         }
         match self.mode {

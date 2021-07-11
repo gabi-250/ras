@@ -1,15 +1,18 @@
 mod csv_util;
+mod instruction;
+mod opcode;
 
-use csv_util::*;
-use ras_x86_repr::instruction::InstructionRepr;
-use ras_x86_repr::operand::{OperandKind, OperandRepr};
-use ras_x86_repr::Mode;
+use csv_util::CsvHeader;
+use instruction::parse_instruction_column;
+use opcode::parse_opcode_column;
+
 use std::collections::{HashMap, HashSet};
 use std::fs::{self, File};
 use std::path::Path;
 
 use proc_macro2::TokenStream;
 use quote::quote;
+use ras_x86_repr::{InstructionRepr, Mode};
 
 const INST_CSV: &str = "./x86-csv/x86.csv";
 const INST_MAP: &str = "../bin/map";
@@ -30,12 +33,8 @@ fn main() {
             continue;
         }
 
-        let (opcode, opcode_extension, rex_prefix) = parse_opcode_column(get_header!(rec, Opcode));
-        let (mnemonic, size1, size2, size3, size4) = parse_mnemonic(get_header!(rec, Instruction));
-        let operand_encoding1 = build_operand_enc(get_header!(rec, Operand1), size1);
-        let operand_encoding2 = build_operand_enc(get_header!(rec, Operand2), size2);
-        let operand_encoding3 = build_operand_enc(get_header!(rec, Operand3), size3);
-        let operand_encoding4 = build_operand_enc(get_header!(rec, Operand4), size4);
+        let (mnemonic, operands) = parse_instruction_column(get_header!(rec, Instruction));
+        let inst_enc = parse_opcode_column(get_header!(rec, Opcode));
 
         let mut modes = vec![];
         if is_valid_mode(get_header!(rec, Valid16)) {
@@ -50,27 +49,9 @@ fn main() {
             modes.push(Mode::Long);
         }
 
-        let operands = vec![
-            operand_encoding1,
-            operand_encoding2,
-            operand_encoding3,
-            operand_encoding4,
-        ]
-        .into_iter()
-        .filter_map(|op| op)
-        .collect();
+        let inst_repr = InstructionRepr::new(inst_enc, operands, modes);
+        insts.entry(mnemonic.clone()).or_default().push(inst_repr);
 
-        let instr = InstructionRepr {
-            opcode,
-            sib: false,
-            rex_prefix,
-            opcode_extension,
-            operands,
-            is_np: false,
-            modes,
-        };
-
-        insts.entry(mnemonic.clone()).or_default().push(instr);
         mnemonics.insert(mnemonic);
     }
 
@@ -117,36 +98,6 @@ fn generate_mnemonic_enum(mnemonics: HashSet<String>) {
 
     let mnemonic_file = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/mnemonic.rs");
     fs::write(mnemonic_file, content.to_string()).unwrap();
-}
-
-pub fn build_operand_enc(operand: &str, size: u32) -> Option<OperandRepr> {
-    if MODRM_REG_RE.is_match(operand) {
-        return Some(OperandRepr::new(OperandKind::ModRmReg, size));
-    } else if MODRM_RM_RE.is_match(operand) {
-        return Some(OperandRepr::new(OperandKind::ModRmRegMem, size));
-    } else if ALL_ACC_RE.is_match(operand) {
-        return Some(OperandRepr::new(OperandKind::Al, size));
-    } else if ACC_OVER_16_RE.is_match(operand) {
-        return Some(OperandRepr::new(OperandKind::Al, size));
-    } else if IMM_RE.is_match(operand) {
-        return Some(OperandRepr::new(OperandKind::Imm, size));
-    } else if IMM8_RE.is_match(operand) {
-        return Some(OperandRepr::new(OperandKind::Imm, size));
-    } else if IW_RE.is_match(operand) || operand == "imm16" {
-        return Some(OperandRepr::new(OperandKind::Imm, size));
-    } else if OPCODE_RD_RE.is_match(operand) {
-        return Some(OperandRepr::new(OperandKind::OpcodeRd, size));
-    } else if MOFFS_RE.is_match(operand) {
-        return Some(OperandRepr::new(OperandKind::Moffs, size));
-    } else if operand == "1" {
-        return Some(OperandRepr::new(OperandKind::One, size)); // XXX
-    } else if operand == "CL" {
-        return Some(OperandRepr::new(OperandKind::Cl, size)); // XXX
-    } else if operand == "NA" || operand == "" {
-        return None;
-    } else {
-        unimplemented!("operand mode for {}", operand);
-    }
 }
 
 pub fn is_valid_mode(mode_rec: &str) -> bool {

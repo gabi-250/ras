@@ -11,7 +11,22 @@ const REX_X: u8 = 0b0000_0010;
 #[allow(unused)]
 const REX_B: u8 = 0b0000_0001;
 
-pub const OPERAND_SIZE_PREFIX: u8 = 0x66;
+const OPERAND_SIZE_PREFIX: u8 = 0x66;
+
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub enum Prefix {
+    OperandSize,
+    Rex(RexPrefix),
+}
+
+impl Into<u8> for Prefix {
+    fn into(self) -> u8 {
+        match self {
+            Prefix::OperandSize => OPERAND_SIZE_PREFIX,
+            Prefix::Rex(rex_prefix) => rex_prefix.into(),
+        }
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub enum RexPrefix {
