@@ -3,7 +3,9 @@ use ras_x86::instruction::Instruction;
 use ras_x86::mnemonic::Mnemonic;
 use ras_x86::operand::{Immediate, Operand};
 use ras_x86::register::RAX;
+use ras_x86::symbol::{Symbol, SymbolAttribute, SymbolType};
 use ras_x86::RasResult;
+
 use std::env;
 
 fn main() -> RasResult<()> {
@@ -16,9 +18,24 @@ fn main() -> RasResult<()> {
     };
 
     let insts = vec![
-        Item::Label("my_label".to_string()),
         Item::Instruction(Instruction::new(
             Mnemonic::MOV,
+            vec![
+                Operand::Register(*RAX),
+                Operand::Immediate(Immediate::Imm32(103)),
+            ],
+        )),
+        Item::Instruction(Instruction::new(Mnemonic::RET, vec![])),
+        Item::Label("test".to_string()),
+        Item::Instruction(Instruction::new(
+            Mnemonic::MOV,
+            vec![
+                Operand::Register(*RAX),
+                Operand::Immediate(Immediate::Imm32(102)),
+            ],
+        )),
+        Item::Instruction(Instruction::new(
+            Mnemonic::ADD,
             vec![
                 Operand::Register(*RAX),
                 Operand::Immediate(Immediate::Imm32(102)),
@@ -27,7 +44,13 @@ fn main() -> RasResult<()> {
         Item::Instruction(Instruction::new(Mnemonic::RET, vec![])),
     ];
 
-    let mut asm = Assembler::new_long(insts);
+    let mut asm = Assembler::new_long(
+        insts,
+        &[(
+            "test".into(),
+            Symbol::new_decl(SymbolType::Quad, SymbolAttribute::Global as u8),
+        )],
+    );
     asm.assemble()?;
     asm.write_obj(out_file)?;
 

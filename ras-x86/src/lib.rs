@@ -3,6 +3,7 @@ pub mod encoder;
 pub mod error;
 pub mod instruction;
 pub mod mnemonic;
+mod object;
 pub mod operand;
 pub mod register;
 pub mod symbol;
@@ -29,7 +30,7 @@ mod tests {
                 vec![$($operands,)*]
             );
 
-            let mut asm =  Assembler::new_long(vec![instr]);
+            let mut asm =  Assembler::new_long(vec![instr], &[]);
             asm.assemble().unwrap();
             assert_eq!(&$expected[..], asm.dump_out());
         }}
