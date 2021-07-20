@@ -2,6 +2,7 @@ pub mod assembler;
 pub mod encoder;
 pub mod error;
 pub mod instruction;
+mod macros;
 pub mod mnemonic;
 mod object;
 pub mod operand;
@@ -18,44 +19,27 @@ pub type RasResult<T> = Result<T, RasError>;
 #[cfg(test)]
 mod tests {
     use super::assembler::Assembler;
-    use super::instruction::Instruction;
-    use super::mnemonic::Mnemonic;
-    use super::operand::{Immediate, Memory, Operand, Scale};
+    use super::operand::Scale;
     use super::register::{AL, AX, EAX, EBX, EDX, RAX, RBP, RBX, RCX, RDX, RSP};
+    use crate::{i, imm16, imm32, imm8, reg, sib};
 
     macro_rules! assert_encoding_eq {
-        ($expected:expr, $opcode:ident, $($operands:expr),*) => {{
-            let instr = Instruction::new(
-                Mnemonic::$opcode,
-                vec![$($operands,)*]
-            );
-
-            let mut asm =  Assembler::new_long(vec![instr], &[]);
+        ($expected:expr, $inst:expr) => {{
+            let mut asm = Assembler::new_long(vec![$inst], &[]);
             asm.assemble().unwrap();
             assert_eq!(&$expected[..], asm.dump_out());
-        }}
+        }};
     }
 
     #[test]
     fn add_reg_reg() {
-        assert_encoding_eq!(
-            [0x48, 0x01, 0xc8],
-            ADD,
-            Operand::Register(*RAX),
-            Operand::Register(*RCX)
-        );
-
-        assert_encoding_eq!(
-            [0x48, 0x01, 0xc3],
-            ADD,
-            Operand::Register(*RBX),
-            Operand::Register(*RAX)
-        );
+        assert_encoding_eq!([0x48, 0x01, 0xc8], i!(ADD, reg!(RAX), reg!(RCX)));
+        assert_encoding_eq!([0x48, 0x01, 0xc3], i!(ADD, reg!(RBX), reg!(RAX)));
     }
 
     #[test]
     fn one_byte_nop() {
-        assert_encoding_eq!([0x90], NOP,);
+        assert_encoding_eq!([0x90], i!(NOP));
     }
 
     #[test]
@@ -65,12 +49,7 @@ mod tests {
 
     #[test]
     fn xor_al_imm8() {
-        assert_encoding_eq!(
-            [0x34, 0x02],
-            XOR,
-            Operand::Register(*AL),
-            Operand::Immediate(Immediate::Imm8(2))
-        );
+        assert_encoding_eq!([0x34, 0x02], i!(XOR, reg!(AL), imm8!(2)));
     }
 
     #[test]
@@ -80,20 +59,13 @@ mod tests {
             // the instruction instead
             //[0x66, 0x35, 0x02, 0x00],
             [0x66, 0x83, 0b11110000, 0x2],
-            XOR,
-            Operand::Register(*AX),
-            Operand::Immediate(Immediate::Imm8(2))
+            i!(XOR, reg!(AX), imm8!(2))
         );
     }
 
     #[test]
     fn xor_ax_imm16() {
-        assert_encoding_eq!(
-            [0x66, 0x35, 0x01, 0x01],
-            XOR,
-            Operand::Register(*AX),
-            Operand::Immediate(Immediate::Imm16(0x101))
-        );
+        assert_encoding_eq!([0x66, 0x35, 0x01, 0x01], i!(XOR, reg!(AX), imm16!(0x101)));
     }
 
     #[test]
@@ -104,9 +76,7 @@ mod tests {
             // an 8-bit value).
             //[0x83, 0xf0, 0xff],
             [0x35, 0xff, 0xff, 0xff, 0xff],
-            XOR,
-            Operand::Register(*EAX),
-            Operand::Immediate(Immediate::Imm32(0xffffffff))
+            i!(XOR, reg!(EAX), imm32!(0xffffffff))
         );
     }
 
@@ -114,20 +84,13 @@ mod tests {
     fn xor_rax_imm32() {
         assert_encoding_eq!(
             [0x48, 0x35, 0x00, 0x00, 0x01, 0x00],
-            XOR,
-            Operand::Register(*RAX),
-            Operand::Immediate(Immediate::Imm32(0x10000))
+            i!(XOR, reg!(RAX), imm32!(0x10000))
         );
     }
 
     #[test]
     fn add_ebx_imm8() {
-        assert_encoding_eq!(
-            [0x83, 0b11000011, 0x2],
-            ADD,
-            Operand::Register(*EBX),
-            Operand::Immediate(Immediate::Imm8(0x2))
-        );
+        assert_encoding_eq!([0x83, 0b11000011, 0x2], i!(ADD, reg!(EBX), imm8!(0x2)));
     }
 
     #[test]
@@ -137,9 +100,7 @@ mod tests {
         //   c6 04 2b 02             movb   $0x2,(%rbx,%rbp,1)
         assert_encoding_eq!(
             [0xc6, 0b00_000_100, 0b00_101_011, 2],
-            MOV,
-            Operand::Memory(Memory::sib(None, Some(*RBX), Some(*RBP), Scale::Byte, None)),
-            Operand::Immediate(Immediate::Imm8(0x2))
+            i!(MOV, sib!(; ; (RBX, RBP,)), imm8!(2))
         );
     }
 
@@ -147,9 +108,7 @@ mod tests {
     fn mov_memory_indirect_rax() {
         assert_encoding_eq!(
             [0x48, 0x8b, 0b00_000_100, 0b00_101_011],
-            MOV,
-            Operand::Register(*RAX),
-            Operand::Memory(Memory::sib(None, Some(*RBX), Some(*RBP), Scale::Byte, None))
+            i!(MOV, reg!(RAX), sib!(; ; (RBX, RBP, Scale::Byte)))
         );
     }
 
@@ -160,16 +119,8 @@ mod tests {
         //   c6 04 2b 02             movb   $0x2,(%rbx,%rbp,1)
         assert_encoding_eq!(
             [0xc6, 0b01_000_100, 0b01_101_011, 5, 2],
-            MOV,
             //  c6 44 2b 05 02          movb   $0x2,0x5(%rbx,%rbp,1)
-            Operand::Memory(Memory::sib(
-                None,
-                Some(*RBX),
-                Some(*RBP),
-                Scale::Word,
-                Some(5),
-            )),
-            Operand::Immediate(Immediate::Imm8(0x2))
+            i!(MOV, sib!(; 5; (RBX, RBP, Scale::Word)), imm8!(2))
         );
     }
 
@@ -177,15 +128,7 @@ mod tests {
     fn mov_memory_indirect_with_displacement_rax() {
         assert_encoding_eq!(
             [0x48, 0x8b, 0b01_000_100, 0b01_101_011, 5],
-            MOV,
-            Operand::Register(*RAX),
-            Operand::Memory(Memory::sib(
-                None,
-                Some(*RBX),
-                Some(*RBP),
-                Scale::Word,
-                Some(5),
-            ))
+            i!(MOV, reg!(RAX), sib!(; 5; (RBX, RBP, Scale::Word)))
         );
     }
 
@@ -193,17 +136,13 @@ mod tests {
     fn xor_memory_indirect() {
         assert_encoding_eq!(
             [0x33, 0x54, 0x24, 0x10],
-            XOR,
-            Operand::Register(*EDX),
-            Operand::Memory(Memory::sib(None, Some(*RSP), None, Scale::Byte, Some(0x10),))
+            i!(XOR, reg!(EDX), sib!(; 0x10; (RSP,,)))
         );
 
         // The SIB byte is not needed if the base register is RDX:
         assert_encoding_eq!(
             [0x33, 0x52, 0x10],
-            XOR,
-            Operand::Register(*EDX),
-            Operand::Memory(Memory::sib(None, Some(*RDX), None, Scale::Byte, Some(0x10),))
+            i!(XOR, reg!(EDX), sib!(; 0x10; (RDX,,)))
         );
     }
 
