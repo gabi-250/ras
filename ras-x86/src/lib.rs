@@ -18,16 +18,22 @@ pub type RasResult<T> = Result<T, RasError>;
 
 #[cfg(test)]
 mod tests {
-    use super::assembler::Assembler;
-    use super::operand::Scale;
-    use super::register::{AL, AX, EAX, EBX, EDX, RAX, RBP, RBX, RCX, RDX, RSP};
-    use crate::{i, imm16, imm32, imm8, reg, sib};
+    use crate::assembler::{Assembler, Item};
+    use crate::operand::Scale;
+    use crate::register::{AL, AX, EAX, EBX, EDX, RAX, RBP, RBX, RCX, RDX, RSP};
+    use crate::symbol::{Symbol, SymbolAttribute, SymbolType};
+    use crate::{i, imm16, imm32, imm8, label, reg, sib, RasError};
 
     macro_rules! assert_encoding_eq {
-        ($expected:expr, $inst:expr) => {{
-            let mut asm = Assembler::new_long(vec![$inst], &[]);
+        ([$($expected:expr),*], $($inst:expr),*) => {{
+            let mut asm = Assembler::new_long(vec![$($inst),*], &[]);
             asm.assemble().unwrap();
-            assert_eq!(&$expected[..], asm.dump_out());
+            assert_eq!(&[$($expected),*], asm.dump_out());
+        }};
+
+        ($expected_err:expr, $($inst:expr),*) => {{
+            let mut asm = Assembler::new_long(vec![$($inst),*], &[]);
+            assert_eq!($expected_err, asm.assemble().unwrap_err());
         }};
     }
 
@@ -144,6 +150,51 @@ mod tests {
             [0x33, 0x52, 0x10],
             i!(XOR, reg!(EDX), sib!(; 0x10; (RDX,,)))
         );
+    }
+
+    #[test]
+    fn jmp_sib_memory() {
+        //   ff 64 8b 01             jmpq   *0x1(%rbx,%rcx,4)
+        assert_encoding_eq!(
+            [0xff, 0x64, 0x8b, 0x01],
+            i!(JMP, sib!(; 0x1; (RBX, RCX, Scale::Double)))
+        );
+    }
+
+    #[test]
+    fn jmp_local_label() {
+        assert_encoding_eq!(
+            // nop, followed by the rel32 version of the JMP (0xfffffffa = -6)
+            [0x90, 0xe9, 0xfa, 0xff, 0xff, 0xff],
+            // 0:
+            Item::Label("test_label".to_string()),
+            // 0:
+            Item::Instruction(i!(NOP)),
+            // 1:
+            Item::Instruction(i!(JMP, label!("test_label".to_string())))
+        );
+    }
+
+    #[test]
+    fn jmp_undefined_static_symbol() {
+        assert_encoding_eq!(
+            RasError::UndefinedSymbols(vec!["test_label".into()]),
+            Item::Instruction(i!(JMP, label!("test_label".to_string())))
+        );
+    }
+
+    #[test]
+    fn jmp_undefined_global_symbol() {
+        let insts = vec![Item::Instruction(i!(JMP, label!("test_label".to_string())))];
+        let syms = &[(
+            "test_label".into(),
+            Symbol::new_decl(SymbolType::Quad, SymbolAttribute::Global as u8),
+        )];
+        let mut asm = Assembler::new_long(insts, syms);
+        asm.assemble().unwrap();
+
+        // The jump target will be filled out by the linker:
+        assert_eq!(&[0xe9, 0, 0, 0, 0], asm.dump_out());
     }
 
     //   XXX

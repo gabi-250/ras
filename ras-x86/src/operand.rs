@@ -113,10 +113,10 @@ impl Operand {
         matches!(self, Operand::Memory(_))
     }
 
-    pub fn reg_num(&self) -> Option<u8> {
+    pub fn reg_num(&self) -> u8 {
         match self {
-            Operand::Register(reg) => Some(**reg as u8),
-            _ => None,
+            Operand::Register(reg) => **reg as u8,
+            _ => 0,
         }
     }
 
@@ -131,7 +131,7 @@ impl Operand {
         match self {
             Operand::Register(reg) => reg.size(),
             Operand::Immediate(imm) => imm.size(),
-            _ => unimplemented!("{:#x?}", self),
+            Operand::Memory(_) => 64, // XXX
         }
     }
 
@@ -162,8 +162,11 @@ impl Operand {
             (Operand::Register(_), OperandKind::ModRmRegMem)
             | (Operand::Register(_), OperandKind::ModRmReg)
             | (Operand::Immediate(_), OperandKind::Imm) => true,
-            (Operand::Memory(m), OperandKind::ModRmRegMem) if m.is_sib() || m.is_relative() => true,
+            (Operand::Memory(m), OperandKind::ModRmRegMem) if m.is_sib() => true,
             (Operand::Memory(m), OperandKind::Moffs) if m.is_moffs() => true,
+            // Be pessimistic and always use the largest (rel32) encoding for jump/call
+            // instructions:
+            (Operand::Memory(m), OperandKind::Rel32) if m.is_relative() => true,
             _ => false,
         }
     }

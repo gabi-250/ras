@@ -76,13 +76,22 @@ fn parse_rex_prefix(inst: &[u8]) -> (Option<RexPrefix>, &[u8]) {
 }
 
 fn parse_opcode(mut inst: &[u8]) -> (Vec<u8>, &[u8]) {
+    const ENTRY_METADATA: &[&str] = &["cb", "cw", "cd", "cp", "co", "ct"];
+
     let mut opcode = vec![];
     loop {
         if inst.len() < 2 || opcode.len() == 3 {
             break;
         }
 
-        match u8::from_str_radix(std::str::from_utf8(&inst[0..2]).unwrap(), 16) {
+        let maybe_op = std::str::from_utf8(&inst[0..2]).unwrap();
+        // Not an opcode after all...
+        if ENTRY_METADATA.contains(&maybe_op) {
+            inst = skip_separators(&inst[2..], &is_separator);
+            break;
+        }
+
+        match u8::from_str_radix(maybe_op, 16) {
             Ok(op) => {
                 opcode.push(op);
                 // skip over the separator

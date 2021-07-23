@@ -74,3 +74,12 @@ macro_rules! sib {
         $crate::operand::Operand::Memory($crate::operand::Memory::sib(_seg, _base, _index, _scale, _disp))
     }};
 }
+
+#[macro_export]
+macro_rules! label {
+    ($label:expr) => {
+        $crate::operand::Operand::Memory($crate::operand::Memory::Relative(
+            $crate::operand::MemoryRel::Label($label),
+        ))
+    };
+}

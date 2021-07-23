@@ -1,31 +1,25 @@
-use crate::assembler::InstructionPointer;
+use crate::assembler::{InstructionPointer, SymbolId};
 use crate::error::RasError;
-use crate::operand::{Immediate, Memory, Operand, Scale};
+use crate::operand::{Immediate, Memory, MemoryRel, Operand, Scale};
 use crate::register::{Register, RegisterNum};
-use crate::repr::{InstructionRepr, Prefix};
+use crate::repr::{InstructionRepr, OperandRepr, Prefix};
+use crate::symbol::Symbol;
 use crate::Mode;
+
+use std::collections::HashMap;
 
 const SIB_INDEX_NONE: u8 = 0b100;
 
-macro_rules! sext {
-    ($imm:expr, $size:expr) => {{
-        let imm = $imm as i32;
-        let remaining = std::mem::size_of_val(&imm) as u32 * 8 - $size;
-        let sext_imm = imm.wrapping_shl(remaining).wrapping_shr(remaining);
-
-        match $size {
-            8 => (sext_imm as u8).to_le_bytes().to_vec(),
-            16 => (sext_imm as u16).to_le_bytes().to_vec(),
-            32 => (sext_imm as u32).to_le_bytes().to_vec(),
-            n => panic!("invalid imm size: {}", n),
-        }
-    }};
+pub(crate) struct Fixup {
+    pub offset: InstructionPointer,
+    pub size: u64,
 }
 
 #[derive(Default)]
 pub(crate) struct Encoder {
     pub out: Vec<u8>,
     pub mode: Mode,
+    rel_jmp_fixups: HashMap<SymbolId, Vec<Fixup>>,
 }
 
 impl Encoder {
@@ -33,7 +27,12 @@ impl Encoder {
         Self {
             out: Default::default(),
             mode,
+            rel_jmp_fixups: Default::default(),
         }
+    }
+
+    pub(crate) fn instruction_pointer(&self) -> InstructionPointer {
+        self.out.len() as u64
     }
 
     pub(crate) fn encode(
@@ -49,38 +48,90 @@ impl Encoder {
         }
     }
 
-    pub(crate) fn encode_no_operands(
+    pub(crate) fn fixup_symbol_references(
         &mut self,
-        instr_repr: &InstructionRepr,
+        sym_tab: &HashMap<SymbolId, Symbol>,
     ) -> Result<(), RasError> {
-        if let Some(rex_prefix) = instr_repr.encoding.rex_prefix {
-            self.out.push(rex_prefix.into());
+        for (symbol_id, symbol) in sym_tab {
+            if let Some(offset) = symbol.offset {
+                if let Some(fixups) = self.rel_jmp_fixups.remove(&symbol_id.to_string()) {
+                    for fixup in fixups {
+                        let start = fixup.offset as usize;
+                        let end = (fixup.offset + fixup.size) as usize;
+                        let offset =
+                            (offset as i32 - (fixup.offset + fixup.size) as i32).to_le_bytes();
+
+                        self.out.splice(start..end, offset.iter().cloned());
+                    }
+                }
+            }
         }
 
-        self.out.extend(&instr_repr.encoding.opcode);
+        // If there are still some unresolved symbols, return an error if any of them are not
+        // marked as external:
+        let undefined_symbols: Vec<String> = self
+            .rel_jmp_fixups
+            .keys()
+            .map(|symbol_id| symbol_id.to_string())
+            .filter(|symbol_id| {
+                !sym_tab
+                    .get(symbol_id)
+                    .map(|sym| sym.is_global())
+                    .unwrap_or_default()
+            })
+            .collect();
+
+        if !undefined_symbols.is_empty() {
+            return Err(RasError::UndefinedSymbols(undefined_symbols));
+        }
 
         Ok(())
     }
 
-    pub(crate) fn encode_1_operand(
-        &mut self,
-        _instr_repr: &InstructionRepr,
-        _operand: &Operand,
-    ) -> Result<(), RasError> {
-        unimplemented!("single operand instruction");
-    }
-
-    pub(crate) fn encode_2_operands(
-        &mut self,
-        instr_repr: &InstructionRepr,
-        dst_op: &Operand,
-        src_op: &Operand,
-    ) -> Result<(), RasError> {
-        // Encode prefixes
-        if let Some(rex_prefix) = instr_repr.encoding.rex_prefix {
+    fn encode_no_operands(&mut self, inst_repr: &InstructionRepr) -> Result<(), RasError> {
+        if let Some(rex_prefix) = inst_repr.encoding.rex_prefix {
             self.out.push(rex_prefix.into());
         }
 
+        self.out.extend(&inst_repr.encoding.opcode);
+
+        Ok(())
+    }
+
+    fn encode_1_operand(
+        &mut self,
+        inst_repr: &InstructionRepr,
+        operand: &Operand,
+    ) -> Result<(), RasError> {
+        self.encode_prefixes(inst_repr, operand.size());
+        self.out.extend(&inst_repr.encoding.opcode);
+
+        let (reg_op, reg_memory_op) = match operand {
+            Operand::Register(_) => (Some(operand), None),
+            Operand::Memory(_) => (None, Some(operand)),
+            _ => (None, None),
+        };
+
+        if inst_repr.has_modrm() {
+            assert!(reg_op.is_some() || reg_memory_op.is_some());
+
+            self.encode_modrm_sib_bytes(inst_repr, reg_op, reg_memory_op)?;
+        }
+
+        if let Some(Operand::Memory(Memory::Relative(rel))) = reg_memory_op {
+            let operand_repr = inst_repr.operands[0];
+            self.encode_rel_memory_offset(&rel, operand_repr);
+        }
+
+        Ok(())
+    }
+
+    fn encode_2_operands(
+        &mut self,
+        inst_repr: &InstructionRepr,
+        dst_op: &Operand,
+        src_op: &Operand,
+    ) -> Result<(), RasError> {
         let op_size = if dst_op.is_memory() {
             src_op.size()
         } else if src_op.is_memory() {
@@ -89,95 +140,134 @@ impl Encoder {
             std::cmp::max(dst_op.size(), src_op.size())
         };
 
-        if self.needs_operand_size_prefix(instr_repr, op_size) {
-            self.out.push(Prefix::OperandSize.into());
-        }
+        self.encode_prefixes(inst_repr, op_size);
+        self.out.extend(&inst_repr.encoding.opcode);
 
-        self.out.extend(&instr_repr.encoding.opcode);
-
-        if instr_repr.has_modrm() {
-            let memory_op = if dst_op.is_memory() {
-                Some(dst_op)
-            } else if src_op.is_memory() {
-                Some(src_op)
-            } else {
-                None
+        if inst_repr.has_modrm() {
+            let (reg_op, reg_memory_op) = match (src_op, dst_op) {
+                (Operand::Register(_), Operand::Memory(_)) => (Some(src_op), Some(dst_op)),
+                (Operand::Register(_), Operand::Register(_)) => (Some(src_op), Some(dst_op)),
+                (Operand::Memory(_), Operand::Register(_)) => (Some(dst_op), Some(src_op)),
+                (Operand::Memory(_), _) => (None, Some(src_op)),
+                (_, Operand::Register(_)) => (Some(dst_op), None),
+                (_, Operand::Memory(_)) => (None, Some(dst_op)),
+                _ => unreachable!(
+                    "instruction repr has ModRM byte but none of the operands are register/memory"
+                ),
             };
 
-            let modrm_reg = if let Some(opcode_ext) = instr_repr.encoding.opcode_extension {
-                opcode_ext
-            } else {
-                if !src_op.is_memory() {
-                    src_op.reg_num().unwrap()
-                } else {
-                    dst_op.reg_num().unwrap()
-                }
-            };
-
-            if let Some(Operand::Memory(Memory::Sib {
-                displacement,
-                base,
-                index,
-                scale,
-                ..
-            })) = memory_op
-            {
-                let (base, index, is_disp32) = match (base.is_some(), index.is_some(), scale) {
-                    (true, _, _) => (base, index, false),
-                    (false, true, Scale::Byte) => (index, base, false),
-                    (false, false, _) => {
-                        // disp32 case
-                        (base, index, true)
-                    }
-                    _ => (base, index, false),
-                };
-
-                let (modifier, displacement) = match (is_disp32, displacement) {
-                    // In GNU as, expressions with missing base and index registers with no
-                    // displacement are the same as a 32-bit displacement of 0 (e.g. movb $0x2,(,2)
-                    // is the same as movb $0x2, 0)
-                    (true, v) => (0b00, Some(v.unwrap_or(0).to_le_bytes().to_vec())),
-                    // disp8
-                    (false, Some(v)) if v.next_power_of_two() < 256 => {
-                        (0b01, Some((*v as u8).to_le_bytes().to_vec()))
-                    }
-                    // disp32
-                    (false, Some(v)) => (0b10, Some(v.to_le_bytes().to_vec())),
-                    (false, None) => (0b00, None),
-                };
-
-                let sib = maybe_sib(base.as_ref(), index.as_ref(), *scale, modifier)?;
-                let rm = if sib.is_some() {
-                    0b100
-                } else {
-                    base.map(|base| *base as u8).unwrap_or(0)
-                };
-                self.out.push(modrm(modifier, modrm_reg, rm));
-
-                if let Some(sib) = sib {
-                    self.out.push(sib);
-                }
-
-                // Encode the displacement if needed
-                if let Some(displacement) = displacement {
-                    self.out.extend(displacement);
-                }
-            } else {
-                self.out
-                    .push(modrm(0b11, modrm_reg, dst_op.reg_num().unwrap_or(0)));
-            }
+            self.encode_modrm_sib_bytes(inst_repr, reg_op, reg_memory_op)?;
         }
 
         // Do we need to encode an immediate?
         if let Some(imm) = src_op.immediate() {
-            self.encode_imm(imm, src_op.size());
+            self.encode_imm(imm);
         }
 
         Ok(())
     }
 
-    pub(crate) fn instruction_pointer(&self) -> InstructionPointer {
-        self.out.len() as u64
+    fn encode_prefixes(&mut self, inst_repr: &InstructionRepr, operand_size: u32) {
+        if let Some(rex_prefix) = inst_repr.encoding.rex_prefix {
+            self.out.push(rex_prefix.into());
+        }
+
+        if self.needs_operand_size_prefix(&inst_repr, operand_size) {
+            self.out.push(Prefix::OperandSize.into());
+        }
+    }
+
+    fn encode_modrm_sib_bytes(
+        &mut self,
+        inst_repr: &InstructionRepr,
+        reg_op: Option<&Operand>,
+        reg_memory_op: Option<&Operand>,
+    ) -> Result<(), RasError> {
+        let (modrm_reg, rm) = if let Some(opcode_ext) = inst_repr.encoding.opcode_extension {
+            (
+                opcode_ext,
+                reg_op.map(|reg| reg.reg_num()).unwrap_or_default(),
+            )
+        } else {
+            (
+                reg_op.map(|reg| reg.reg_num()).unwrap_or_default(),
+                reg_memory_op.map(|reg| reg.reg_num()).unwrap_or_default(),
+            )
+        };
+
+        if let Some(Operand::Memory(Memory::Sib {
+            displacement,
+            base,
+            index,
+            scale,
+            ..
+        })) = reg_memory_op
+        {
+            let (base, index, is_disp32) = match (base.is_some(), index.is_some(), scale) {
+                (true, _, _) => (base, index, false),
+                (false, true, Scale::Byte) => (index, base, false),
+                (false, false, _) => {
+                    // disp32 case
+                    (base, index, true)
+                }
+                _ => (base, index, false),
+            };
+
+            let (modifier, displacement) = match (is_disp32, displacement) {
+                // In GNU as, expressions with missing base and index registers with no
+                // displacement are the same as a 32-bit displacement of 0 (e.g. movb $0x2,(,2)
+                // is the same as movb $0x2, 0)
+                (true, v) => (0b00, Some(v.unwrap_or(0).to_le_bytes().to_vec())),
+                // disp8
+                (false, Some(v)) if v.next_power_of_two() < 256 => {
+                    (0b01, Some((*v as u8).to_le_bytes().to_vec()))
+                }
+                // disp32
+                (false, Some(v)) => (0b10, Some(v.to_le_bytes().to_vec())),
+                (false, None) => (0b00, None),
+            };
+
+            let sib = maybe_sib(base.as_ref(), index.as_ref(), *scale, modifier)?;
+            let rm = if sib.is_some() {
+                0b100
+            } else {
+                base.map(|base| *base as u8).unwrap_or(0)
+            };
+            self.out.push(modrm(modifier, modrm_reg, rm));
+
+            if let Some(sib) = sib {
+                self.out.push(sib);
+            }
+
+            // Encode the displacement if needed
+            if let Some(displacement) = displacement {
+                self.out.extend(displacement);
+            }
+        } else {
+            self.out.push(modrm(0b11, modrm_reg, rm))
+        }
+
+        Ok(())
+    }
+
+    fn encode_rel_memory_offset(&mut self, rel: &MemoryRel, operand_repr: OperandRepr) {
+        match rel {
+            MemoryRel::Immediate(_imm) => unimplemented!("imm memory offset"),
+            MemoryRel::Label(symbol_id) => {
+                let size = (operand_repr.size() / 8) as usize;
+                let fixup = Fixup {
+                    offset: self.instruction_pointer(),
+                    size: size as u64,
+                };
+                // Store some zeroes...
+                self.out.extend(vec![0; size]);
+                // ...and remember that we need to fix-up this location when we resolve the label:
+                self.rel_jmp_fixups
+                    .entry(symbol_id.to_string())
+                    .or_default()
+                    .push(fixup);
+            }
+        }
     }
 
     /// Check if the current instruction needs an operand-size prefix.
@@ -191,10 +281,10 @@ impl Encoder {
     /// REX.W Prefix            |0  |0  |0  |0  |1  |1  |1  |1
     /// Operand-Size Prefix     |N  |N  |Y  |Y  |N  |N  |Y  |Y
     /// Effective Operand Size  |32 |32 |16 |16 |64 |64 |64 |64
-    fn needs_operand_size_prefix(&mut self, instr_repr: &InstructionRepr, size: u32) -> bool {
+    fn needs_operand_size_prefix(&mut self, inst_repr: &InstructionRepr, size: u32) -> bool {
         // The REX.W prefix takes precedence over the operand-size prefix, so if the instruction
         // already has a REX.W prefix, there's no need to add the operand-size prefix.
-        if instr_repr.encoding.rex_prefix.is_some() || !instr_repr.is_full_sized() {
+        if inst_repr.encoding.rex_prefix.is_some() || !inst_repr.is_full_sized() {
             return false;
         }
         match self.mode {
@@ -209,13 +299,13 @@ impl Encoder {
     }
 
     /// Encode `imm` to have the specified `size`, sign-extending if needed.
-    fn encode_imm(&mut self, imm: Immediate, size: u32) {
+    fn encode_imm(&mut self, imm: Immediate) {
         // XXX: MOV r64, imm64 supports 64-bit immediates
         // Can't use more than 32 bits for the immediate.
-        match (imm, std::cmp::min(size, 32)) {
-            (Immediate::Imm8(imm), size) => self.out.extend(&sext!(imm, size)),
-            (Immediate::Imm16(imm), size) => self.out.extend(&sext!(imm, size)),
-            (Immediate::Imm32(imm), size) => self.out.extend(&sext!(imm, size)),
+        match imm {
+            Immediate::Imm8(imm) => self.out.extend(imm.to_le_bytes().to_vec()),
+            Immediate::Imm16(imm) => self.out.extend(imm.to_le_bytes().to_vec()),
+            Immediate::Imm32(imm) => self.out.extend(imm.to_le_bytes().to_vec()),
         }
     }
 }

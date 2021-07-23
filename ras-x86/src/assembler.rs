@@ -56,6 +56,8 @@ impl Assembler {
             }
         }
 
+        self.encoder.fixup_symbol_references(&self.sym_tab)?;
+
         Ok(())
     }
 
