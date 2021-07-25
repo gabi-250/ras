@@ -1,7 +1,7 @@
 use ras_x86::assembler::{Assembler, Item};
 use ras_x86::instruction::Instruction;
 use ras_x86::mnemonic::Mnemonic;
-use ras_x86::operand::{Immediate, Operand};
+use ras_x86::operand::{Immediate, Memory, MemoryRel, Operand};
 use ras_x86::register::RAX;
 use ras_x86::symbol::{Symbol, SymbolAttribute, SymbolType};
 use ras_x86::RasResult;
@@ -40,6 +40,12 @@ fn main() -> RasResult<()> {
                 Operand::Register(*RAX),
                 Operand::Immediate(Immediate::Imm32(102)),
             ],
+        )),
+        Item::Instruction(Instruction::new(
+            Mnemonic::JMP,
+            vec![Operand::Memory(Memory::Relative(MemoryRel::Label(
+                "test".to_string(),
+            )))],
         )),
         Item::Instruction(Instruction::new(Mnemonic::RET, vec![])),
     ];

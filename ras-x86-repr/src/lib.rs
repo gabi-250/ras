@@ -4,7 +4,7 @@ pub mod prefix;
 
 use serde::{Deserialize, Serialize};
 
-pub use instruction::{InstructionEncoding, InstructionRepr};
+pub use instruction::{EncodingBytecode, InstructionEncoding, InstructionRepr};
 pub use operand::{OperandKind, OperandRepr};
 pub use prefix::{Prefix, RexPrefix};
 

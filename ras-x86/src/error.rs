@@ -43,7 +43,7 @@ impl Display for RasError {
             DuplicateLabel(label) => write!(f, "duplicate label: {}", label),
             UndefinedSymbols(symbols) => {
                 for symbol in symbols {
-                    write!(f, "symbol {} undefined\n", symbol)?;
+                    writeln!(f, "symbol {} undefined", symbol)?;
                 }
 
                 Ok(())

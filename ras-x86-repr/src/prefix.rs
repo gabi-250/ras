@@ -19,9 +19,9 @@ pub enum Prefix {
     Rex(RexPrefix),
 }
 
-impl Into<u8> for Prefix {
-    fn into(self) -> u8 {
-        match self {
+impl From<Prefix> for u8 {
+    fn from(prefix: Prefix) -> u8 {
+        match prefix {
             Prefix::OperandSize => OPERAND_SIZE_PREFIX,
             Prefix::Rex(rex_prefix) => rex_prefix.into(),
         }
@@ -49,12 +49,12 @@ pub enum RexPrefix {
     B,
 }
 
-impl Into<u8> for RexPrefix {
-    fn into(self) -> u8 {
-        match self {
+impl From<RexPrefix> for u8 {
+    fn from(prefix: RexPrefix) -> u8 {
+        match prefix {
             RexPrefix::W => REX | REX_W,
             RexPrefix::None => REX,
-            prefix => unimplemented!("prefix={:?}", prefix),
+            _ => unimplemented!("prefix={:?}", prefix),
         }
     }
 }

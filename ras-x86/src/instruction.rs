@@ -40,17 +40,21 @@ impl Instruction {
         // Find the best instruction encoding (always choose the encoding with the smallest operand
         // sizes).
         let inst_repr = variants
-            .into_iter()
+            .iter()
             .filter(|variant| {
                 variant.modes.contains(&enc.mode) && Self::matches(variant, &self.operands)
             })
             .reduce(|inst_a, inst_b| {
+                use std::cmp::Ordering;
+
                 let mut found_better = false;
                 for (op_repr_a, op_repr_b) in inst_a.operands.iter().zip(inst_b.operands.iter()) {
-                    if op_repr_b.size() > op_repr_a.size() {
-                        return inst_a;
-                    } else if op_repr_b.size() < op_repr_a.size() {
-                        found_better = true;
+                    match op_repr_b.size().cmp(&op_repr_a.size()) {
+                        Ordering::Greater => return inst_a,
+                        Ordering::Less => {
+                            found_better = true;
+                        }
+                        _ => {}
                     }
                 }
 

@@ -25,7 +25,7 @@ impl Assembler {
             mode,
             encoder: Encoder::new(mode),
             items: items.into_iter().map(Into::into).collect(),
-            sym_tab: symbols.into_iter().cloned().collect(),
+            sym_tab: symbols.iter().cloned().collect(),
         }
     }
 
@@ -74,7 +74,7 @@ impl Assembler {
             obj.add_text_symbol(sym_id, sym);
         }
 
-        File::create(file.as_ref())?.write(&obj.write()?)?;
+        File::create(file.as_ref())?.write_all(&obj.write()?)?;
         Ok(())
     }
 }

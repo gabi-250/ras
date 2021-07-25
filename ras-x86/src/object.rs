@@ -2,7 +2,7 @@ use object::endian::Endianness;
 use object::write::{Object, SectionId, StandardSection, Symbol as ObjSymbol, SymbolSection};
 use object::{Architecture, BinaryFormat, SymbolFlags, SymbolKind, SymbolScope};
 
-use crate::symbol::{Symbol, SymbolId};
+use crate::symbol::Symbol;
 use crate::{Mode, RasResult};
 
 pub struct ObjectWriter {
@@ -28,7 +28,7 @@ impl ObjectWriter {
             .append_section_data(self.text_section_id, &text_section, ALIGN);
     }
 
-    pub fn add_text_symbol(&mut self, sym_id: &SymbolId, sym: &Symbol) {
+    pub fn add_text_symbol(&mut self, sym_id: &str, sym: &Symbol) {
         // If the symbol is defined in this compilation unit...
         if let Some(offset) = sym.offset {
             let sym = ObjSymbol {

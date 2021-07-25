@@ -2,7 +2,7 @@ use crate::assembler::{InstructionPointer, SymbolId};
 use crate::error::RasError;
 use crate::operand::{Immediate, Memory, MemoryRel, Operand, Scale};
 use crate::register::{Register, RegisterNum};
-use crate::repr::{InstructionRepr, OperandRepr, Prefix};
+use crate::repr::{EncodingBytecode, InstructionRepr, OperandRepr, Prefix};
 use crate::symbol::Symbol;
 use crate::Mode;
 
@@ -89,11 +89,15 @@ impl Encoder {
     }
 
     fn encode_no_operands(&mut self, inst_repr: &InstructionRepr) -> Result<(), RasError> {
-        if let Some(rex_prefix) = inst_repr.encoding.rex_prefix {
-            self.out.push(rex_prefix.into());
+        for code in &inst_repr.encoding.bytecode {
+            match code {
+                EncodingBytecode::Rex(rex_prefix) => {
+                    self.out.push((*rex_prefix).into());
+                }
+                EncodingBytecode::Opcode(opcode) => self.out.push(*opcode),
+                _ => unreachable!("invalid code: {:?}", code),
+            }
         }
-
-        self.out.extend(&inst_repr.encoding.opcode);
 
         Ok(())
     }
@@ -103,24 +107,48 @@ impl Encoder {
         inst_repr: &InstructionRepr,
         operand: &Operand,
     ) -> Result<(), RasError> {
-        self.encode_prefixes(inst_repr, operand.size());
-        self.out.extend(&inst_repr.encoding.opcode);
-
         let (reg_op, reg_memory_op) = match operand {
             Operand::Register(_) => (Some(operand), None),
             Operand::Memory(_) => (None, Some(operand)),
             _ => (None, None),
         };
 
-        if inst_repr.has_modrm() {
-            assert!(reg_op.is_some() || reg_memory_op.is_some());
+        for code in &inst_repr.encoding.bytecode {
+            match code {
+                EncodingBytecode::Rex(rex_prefix) => {
+                    self.out.push((*rex_prefix).into());
+                }
+                EncodingBytecode::Prefix(prefix) => self.out.push(*prefix),
+                EncodingBytecode::Opcode(opcode) => {
+                    if self.needs_operand_size_prefix(&inst_repr, operand.size()) {
+                        self.out.push(Prefix::OperandSize.into());
+                    }
+                    self.out.push(*opcode)
+                }
+                EncodingBytecode::ModRm => {
+                    assert!(reg_op.is_some() || reg_memory_op.is_some());
 
-            self.encode_modrm_sib_bytes(inst_repr, reg_op, reg_memory_op)?;
-        }
+                    self.encode_modrm_sib_bytes(reg_op, reg_memory_op, None)?;
+                }
+                EncodingBytecode::ModRmWithReg(modrm_reg) => {
+                    assert!(reg_op.is_some() || reg_memory_op.is_some());
 
-        if let Some(Operand::Memory(Memory::Relative(rel))) = reg_memory_op {
-            let operand_repr = inst_repr.operands[0];
-            self.encode_rel_memory_offset(&rel, operand_repr);
+                    self.encode_modrm_sib_bytes(reg_op, reg_memory_op, Some(*modrm_reg))?;
+                }
+                EncodingBytecode::Cd => {
+                    if let Some(Operand::Memory(Memory::Relative(rel))) = reg_memory_op {
+                        let operand_repr = inst_repr.operands[0];
+                        self.encode_rel_memory_offset(&rel, operand_repr);
+                    }
+                }
+                EncodingBytecode::Ib | EncodingBytecode::Iw | EncodingBytecode::Id => {
+                    // Do we need to encode an immediate?
+                    if let Some(imm) = operand.immediate() {
+                        self.encode_imm(imm);
+                    }
+                }
+                _ => unimplemented!("encoding: {:?}", code),
+            }
         }
 
         Ok(())
@@ -140,52 +168,64 @@ impl Encoder {
             std::cmp::max(dst_op.size(), src_op.size())
         };
 
-        self.encode_prefixes(inst_repr, op_size);
-        self.out.extend(&inst_repr.encoding.opcode);
+        let (reg_op, reg_memory_op) = match (src_op, dst_op) {
+            (Operand::Register(_), Operand::Memory(_)) => (Some(src_op), Some(dst_op)),
+            (Operand::Register(_), Operand::Register(_)) => (Some(src_op), Some(dst_op)),
+            (Operand::Memory(_), Operand::Register(_)) => (Some(dst_op), Some(src_op)),
+            (Operand::Memory(_), _) => (None, Some(src_op)),
+            (_, Operand::Register(_)) => (Some(dst_op), None),
+            (_, Operand::Memory(_)) => (None, Some(dst_op)),
+            _ => unreachable!(
+                "instruction repr has ModRM byte but none of the operands are register/memory"
+            ),
+        };
 
-        if inst_repr.has_modrm() {
-            let (reg_op, reg_memory_op) = match (src_op, dst_op) {
-                (Operand::Register(_), Operand::Memory(_)) => (Some(src_op), Some(dst_op)),
-                (Operand::Register(_), Operand::Register(_)) => (Some(src_op), Some(dst_op)),
-                (Operand::Memory(_), Operand::Register(_)) => (Some(dst_op), Some(src_op)),
-                (Operand::Memory(_), _) => (None, Some(src_op)),
-                (_, Operand::Register(_)) => (Some(dst_op), None),
-                (_, Operand::Memory(_)) => (None, Some(dst_op)),
-                _ => unreachable!(
-                    "instruction repr has ModRM byte but none of the operands are register/memory"
-                ),
-            };
-
-            self.encode_modrm_sib_bytes(inst_repr, reg_op, reg_memory_op)?;
-        }
-
-        // Do we need to encode an immediate?
-        if let Some(imm) = src_op.immediate() {
-            self.encode_imm(imm);
+        for code in &inst_repr.encoding.bytecode {
+            match code {
+                EncodingBytecode::Rex(rex_prefix) => {
+                    self.out.push((*rex_prefix).into());
+                }
+                EncodingBytecode::Prefix(prefix) => self.out.push(*prefix),
+                EncodingBytecode::Opcode(opcode) => {
+                    if self.needs_operand_size_prefix(&inst_repr, op_size) {
+                        self.out.push(Prefix::OperandSize.into());
+                    }
+                    self.out.push(*opcode)
+                }
+                EncodingBytecode::ModRm => {
+                    self.encode_modrm_sib_bytes(reg_op, reg_memory_op, None)?;
+                }
+                EncodingBytecode::ModRmWithReg(modrm_reg) => {
+                    self.encode_modrm_sib_bytes(reg_op, reg_memory_op, Some(*modrm_reg))?;
+                }
+                EncodingBytecode::Cd => {
+                    if let Some(Operand::Memory(Memory::Relative(rel))) = reg_memory_op {
+                        let operand_repr = inst_repr.operands[0];
+                        self.encode_rel_memory_offset(&rel, operand_repr);
+                    }
+                }
+                EncodingBytecode::Ib | EncodingBytecode::Iw | EncodingBytecode::Id => {
+                    // Do we need to encode an immediate?
+                    if let Some(imm) = src_op.immediate() {
+                        self.encode_imm(imm);
+                    }
+                }
+                _ => unimplemented!("encoding: {:?}", code),
+            }
         }
 
         Ok(())
     }
 
-    fn encode_prefixes(&mut self, inst_repr: &InstructionRepr, operand_size: u32) {
-        if let Some(rex_prefix) = inst_repr.encoding.rex_prefix {
-            self.out.push(rex_prefix.into());
-        }
-
-        if self.needs_operand_size_prefix(&inst_repr, operand_size) {
-            self.out.push(Prefix::OperandSize.into());
-        }
-    }
-
     fn encode_modrm_sib_bytes(
         &mut self,
-        inst_repr: &InstructionRepr,
         reg_op: Option<&Operand>,
         reg_memory_op: Option<&Operand>,
+        modrm_reg: Option<u8>,
     ) -> Result<(), RasError> {
-        let (modrm_reg, rm) = if let Some(opcode_ext) = inst_repr.encoding.opcode_extension {
+        let (modrm_reg, rm) = if let Some(modrm_reg) = modrm_reg {
             (
-                opcode_ext,
+                modrm_reg,
                 reg_op.map(|reg| reg.reg_num()).unwrap_or_default(),
             )
         } else {
@@ -284,7 +324,13 @@ impl Encoder {
     fn needs_operand_size_prefix(&mut self, inst_repr: &InstructionRepr, size: u32) -> bool {
         // The REX.W prefix takes precedence over the operand-size prefix, so if the instruction
         // already has a REX.W prefix, there's no need to add the operand-size prefix.
-        if inst_repr.encoding.rex_prefix.is_some() || !inst_repr.is_full_sized() {
+        if inst_repr
+            .encoding
+            .bytecode
+            .iter()
+            .any(|code| matches!(code, EncodingBytecode::Rex(_)))
+            || !inst_repr.is_full_sized()
+        {
             return false;
         }
         match self.mode {
