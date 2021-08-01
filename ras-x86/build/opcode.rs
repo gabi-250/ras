@@ -1,8 +1,6 @@
 use ras_x86_repr::{EncodingBytecode, InstructionEncoding, RexPrefix};
 use std::str::FromStr;
 
-const ENTRY_METADATA: &[&str] = &["cb", "cw", "cd", "cp", "co", "ct", "ib", "iw", "id"];
-
 pub fn parse_opcode_column(inst: &str) -> InstructionEncoding {
     let inst = inst.as_bytes();
     let mut bytecode = vec![];
@@ -88,19 +86,43 @@ fn parse_opcode<'a>(mut inst: &'a [u8], bytecode: &mut Vec<EncodingBytecode>) ->
 
         let maybe_op = std::str::from_utf8(&inst[0..2]).unwrap();
         // Not an opcode after all...
-        if ENTRY_METADATA.contains(&maybe_op) {
-            bytecode.push(EncodingBytecode::from_str(&maybe_op).unwrap());
+        if let Ok(op) = EncodingBytecode::from_str(&maybe_op) {
+            bytecode.push(op);
             inst = skip_separators(&inst[2..], &is_separator);
             break;
         }
 
-        match u8::from_str_radix(maybe_op, 16) {
+        let op = match u8::from_str_radix(maybe_op, 16) {
             Ok(op) => {
-                bytecode.push(EncodingBytecode::Opcode(op));
                 // skip over the separator
                 inst = skip_separators(&inst[2..], &is_separator);
+                op
             }
             Err(_) => break,
+        };
+
+        if inst.len() >= 2 {
+            match &inst[..2] {
+                b"rb" => {
+                    inst = &inst[2..];
+                    bytecode.push(EncodingBytecode::OpcodeRb(op));
+                }
+                b"rw" => {
+                    inst = &inst[2..];
+                    bytecode.push(EncodingBytecode::OpcodeRw(op));
+                }
+                b"rd" => {
+                    inst = &inst[2..];
+                    bytecode.push(EncodingBytecode::OpcodeRd(op));
+                }
+                b"ro" => {
+                    inst = &inst[2..];
+                    bytecode.push(EncodingBytecode::OpcodeRo(op));
+                }
+                _ => bytecode.push(EncodingBytecode::Opcode(op)),
+            }
+        } else {
+            bytecode.push(EncodingBytecode::Opcode(op));
         }
     }
     inst
@@ -127,8 +149,8 @@ fn parse_modrm<'a>(mut inst: &'a [u8], bytecode: &mut Vec<EncodingBytecode>) -> 
 
         if inst.len() >= 2 {
             let maybe_op = std::str::from_utf8(&inst[0..2]).unwrap();
-            if ENTRY_METADATA.contains(&maybe_op) {
-                bytecode.push(EncodingBytecode::from_str(&maybe_op).unwrap());
+            if let Ok(op) = EncodingBytecode::from_str(&maybe_op) {
+                bytecode.push(op);
                 inst = skip_separators(&inst[2..], &is_separator);
             }
         }

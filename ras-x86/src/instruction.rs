@@ -36,49 +36,30 @@ impl Instruction {
 
     pub(crate) fn encode(&self, enc: &mut Encoder) -> RasResult<()> {
         let variants = (*INSTR_REPRS).get(&self.mnemonic).unwrap();
-
         // Find the best instruction encoding (always choose the encoding with the smallest operand
         // sizes).
-        let inst_repr = variants
+        let mut instructions = variants
             .iter()
-            .filter(|variant| {
-                variant.modes.contains(&enc.mode) && Self::matches(variant, &self.operands)
-            })
-            .reduce(|inst_a, inst_b| {
-                use std::cmp::Ordering;
+            .filter(|variant| enc.is_encodable(variant) && self.encodable_with(variant))
+            .collect::<Vec<_>>();
+        // Sort the instructions by their estimated encoding length:
+        instructions.sort();
+        // Pick the best encoding:
+        let shortest_repr = instructions
+            .first()
+            .ok_or(RasError::MissingInstructionRepr(self.mnemonic))?;
+        enc.encode(shortest_repr, &self.operands)?;
 
-                let mut found_better = false;
-                for (op_repr_a, op_repr_b) in inst_a.operands.iter().zip(inst_b.operands.iter()) {
-                    match op_repr_b.size().cmp(&op_repr_a.size()) {
-                        Ordering::Greater => return inst_a,
-                        Ordering::Less => {
-                            found_better = true;
-                        }
-                        _ => {}
-                    }
-                }
-
-                if found_better {
-                    inst_b
-                } else {
-                    inst_a
-                }
-            });
-
-        enc.encode(
-            inst_repr.ok_or(RasError::MissingInstructionRepr(self.mnemonic))?,
-            &self.operands,
-        )?;
         Ok(())
     }
 
-    /// Check if the operands can be encoded according to this `InstructionRepr`.
-    pub(crate) fn matches(repr: &InstructionRepr, operands: &[Operand]) -> bool {
-        if repr.operands.len() != operands.len() {
+    /// Check if the operands of this instruction can be encoded by the specified `InstructionRepr`.
+    fn encodable_with(&self, repr: &InstructionRepr) -> bool {
+        if self.operands.len() != repr.operands.len() {
             return false;
         }
 
-        operands
+        self.operands
             .iter()
             .zip(repr.operands.iter())
             .all(|(op, op_enc)| op.can_encode(op_enc))

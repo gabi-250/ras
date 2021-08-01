@@ -1,9 +1,10 @@
-use crate::operand::{OperandKind, OperandRepr};
+use crate::operand::OperandRepr;
 use crate::prefix::RexPrefix;
 use crate::Mode;
 
 use serde::{Deserialize, Serialize};
 
+use std::cmp::{Ordering, PartialOrd};
 use std::str::FromStr;
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -36,25 +37,56 @@ impl InstructionRepr {
         }
     }
 
-    pub fn has_modrm(&self) -> bool {
-        self.operands
-            .iter()
-            .any(|op| matches!(op.kind, OperandKind::ModRmReg | OperandKind::ModRmRegMem))
+    /// Returns `true` if the instruction is valid in the specified mode.
+    pub fn is_valid_in_mode(&self, mode: &Mode) -> bool {
+        self.modes.contains(mode)
     }
 
-    /// Return `true` if the data is full-sized.
+    /// Returns `true` if the data is full-sized.
     ///
     /// The data can be byte or full-sized, where full-sized is 16 or 32 bits. This information is
     /// extracted from the w bit of the opcode (if w = 0, the data is byte-sized).
     pub fn is_full_sized(&self) -> bool {
+        // XXX do we really need this?
+        true
+    }
+
+    fn cmp_size(&self, other: &Self) -> Ordering {
+        let has_smaller_op_sizes = self
+            .operands
+            .iter()
+            .zip(other.operands.iter())
+            .any(|(op, other_op)| op.size().cmp(&other_op.size()) == Ordering::Less);
+
+        if has_smaller_op_sizes {
+            return Ordering::Less;
+        }
+
         self.encoding
             .bytecode
-            .iter()
-            .find_map(|code| match &code {
-                EncodingBytecode::Opcode(op) => Some(op % 2 == 1),
-                _ => None,
-            })
-            .unwrap_or_default()
+            .len()
+            .cmp(&other.encoding.bytecode.len())
+    }
+}
+
+impl PartialEq for InstructionRepr {
+    fn eq(&self, other: &Self) -> bool {
+        self.cmp_size(other) == Ordering::Equal
+    }
+}
+
+impl Eq for InstructionRepr {}
+
+// Used for sorting `InstructionRepr`s by size.
+impl PartialOrd for InstructionRepr {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp_size(other))
+    }
+}
+
+impl Ord for InstructionRepr {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.cmp_size(other)
     }
 }
 
@@ -64,11 +96,15 @@ impl InstructionEncoding {
     }
 }
 
-#[derive(Serialize, Deserialize, Copy, Clone, Debug)]
+#[derive(Serialize, Deserialize, Copy, Clone, Debug, PartialEq)]
 pub enum EncodingBytecode {
     Rex(RexPrefix),
     Prefix(u8),
     Opcode(u8),
+    OpcodeRb(u8),
+    OpcodeRw(u8),
+    OpcodeRd(u8),
+    OpcodeRo(u8),
     ModRm,
     ModRmWithReg(u8),
     Ib,
@@ -96,6 +132,7 @@ impl FromStr for EncodingBytecode {
             "co" => Ok(EncodingBytecode::Co),
             "cp" => Ok(EncodingBytecode::Cp),
             "ct" => Ok(EncodingBytecode::Ct),
+            "/r" => Ok(EncodingBytecode::ModRm),
             _ => Err(format!("failed to parse EncodingBytecode: {}", s)),
         }
     }

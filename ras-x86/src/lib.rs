@@ -20,7 +20,7 @@ pub type RasResult<T> = Result<T, RasError>;
 mod tests {
     use crate::assembler::{Assembler, Item};
     use crate::operand::Scale;
-    use crate::register::{AL, AX, EAX, EBX, EDX, RAX, RBP, RBX, RCX, RDX, RSP};
+    use crate::register::{AL, AX, BX, CX, EAX, EBX, EDX, RAX, RBP, RBX, RCX, RDX, RSP};
     use crate::symbol::{Symbol, SymbolAttribute, SymbolType};
     use crate::{i, imm16, imm32, imm8, label, reg, sib, RasError};
 
@@ -159,6 +159,24 @@ mod tests {
             [0xff, 0x64, 0x8b, 0x01],
             i!(JMP, sib!(; 0x1; (RBX, RCX, Scale::Double)))
         );
+    }
+
+    #[test]
+    fn jmp_pop_16bit_reg() {
+        // Requires the 0x66 operand-size prefix in long mode because the operand size isn't the
+        // default operand size.
+        assert_encoding_eq!([0x66, 0x58], i!(POP, reg!(AX)));
+        // The register number is encoded in the 3 least-significant bits of the opcode byte.
+        assert_encoding_eq!([0x66, 0x5b], i!(POP, reg!(BX)));
+        assert_encoding_eq!([0x66, 0x59], i!(POP, reg!(CX)));
+    }
+
+    #[test]
+    fn jmp_pop_64bit_reg() {
+        assert_encoding_eq!([0x58], i!(POP, reg!(RAX)));
+        // The register number is encoded in the 3 least-significant bits of the opcode byte.
+        assert_encoding_eq!([0x5b], i!(POP, reg!(RBX)));
+        assert_encoding_eq!([0x59], i!(POP, reg!(RCX)));
     }
 
     #[test]

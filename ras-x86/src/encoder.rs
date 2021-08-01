@@ -35,6 +35,11 @@ impl Encoder {
         self.out.len() as u64
     }
 
+    /// Returns `true` if the specified instruction can be encoded in the current mode.
+    pub(crate) fn is_encodable(&self, repr: &InstructionRepr) -> bool {
+        repr.is_valid_in_mode(&self.mode)
+    }
+
     pub(crate) fn encode(
         &mut self,
         repr: &InstructionRepr,
@@ -108,7 +113,7 @@ impl Encoder {
         operand: &Operand,
     ) -> Result<(), RasError> {
         let (reg_op, reg_memory_op) = match operand {
-            Operand::Register(_) => (Some(operand), None),
+            Operand::Register(reg) => (Some(reg), None),
             Operand::Memory(_) => (None, Some(operand)),
             _ => (None, None),
         };
@@ -124,6 +129,17 @@ impl Encoder {
                         self.out.push(Prefix::OperandSize.into());
                     }
                     self.out.push(*opcode)
+                }
+                EncodingBytecode::OpcodeRw(opcode)
+                | EncodingBytecode::OpcodeRb(opcode)
+                | EncodingBytecode::OpcodeRd(opcode) => {
+                    if self.needs_operand_size_prefix(&inst_repr, operand.size()) {
+                        self.out.push(Prefix::OperandSize.into());
+                    }
+                    match reg_op {
+                        Some(reg_op) => self.encode_reg_in_opcode(*opcode, reg_op),
+                        None => unreachable!("invalid operand"),
+                    }
                 }
                 EncodingBytecode::ModRm => {
                     assert!(reg_op.is_some() || reg_memory_op.is_some());
@@ -142,9 +158,9 @@ impl Encoder {
                     }
                 }
                 EncodingBytecode::Ib | EncodingBytecode::Iw | EncodingBytecode::Id => {
-                    // Do we need to encode an immediate?
-                    if let Some(imm) = operand.immediate() {
-                        self.encode_imm(imm);
+                    match operand.immediate() {
+                        Some(imm) => self.encode_imm(imm),
+                        None => unreachable!("invalid operand"),
                     }
                 }
                 _ => unimplemented!("encoding: {:?}", code),
@@ -157,24 +173,24 @@ impl Encoder {
     fn encode_2_operands(
         &mut self,
         inst_repr: &InstructionRepr,
-        dst_op: &Operand,
-        src_op: &Operand,
+        op1: &Operand,
+        op2: &Operand,
     ) -> Result<(), RasError> {
-        let op_size = if dst_op.is_memory() {
-            src_op.size()
-        } else if src_op.is_memory() {
-            dst_op.size()
+        let op_size = if op1.is_memory() {
+            op2.size()
+        } else if op2.is_memory() {
+            op1.size()
         } else {
-            std::cmp::max(dst_op.size(), src_op.size())
+            std::cmp::max(op1.size(), op2.size())
         };
 
-        let (reg_op, reg_memory_op) = match (src_op, dst_op) {
-            (Operand::Register(_), Operand::Memory(_)) => (Some(src_op), Some(dst_op)),
-            (Operand::Register(_), Operand::Register(_)) => (Some(src_op), Some(dst_op)),
-            (Operand::Memory(_), Operand::Register(_)) => (Some(dst_op), Some(src_op)),
-            (Operand::Memory(_), _) => (None, Some(src_op)),
-            (_, Operand::Register(_)) => (Some(dst_op), None),
-            (_, Operand::Memory(_)) => (None, Some(dst_op)),
+        let (reg_op, reg_memory_op) = match (op2, op1) {
+            (Operand::Register(reg), Operand::Memory(_)) => (Some(reg), Some(op1)),
+            (Operand::Register(reg), Operand::Register(_)) => (Some(reg), Some(op1)),
+            (Operand::Memory(_), Operand::Register(reg)) => (Some(reg), Some(op2)),
+            (Operand::Memory(_), _) => (None, Some(op2)),
+            (_, Operand::Register(reg)) => (Some(reg), None),
+            (_, Operand::Memory(_)) => (None, Some(op1)),
             _ => unreachable!(
                 "instruction repr has ModRM byte but none of the operands are register/memory"
             ),
@@ -206,8 +222,12 @@ impl Encoder {
                 }
                 EncodingBytecode::Ib | EncodingBytecode::Iw | EncodingBytecode::Id => {
                     // Do we need to encode an immediate?
-                    if let Some(imm) = src_op.immediate() {
-                        self.encode_imm(imm);
+                    match (op1.immediate(), op2.immediate()) {
+                        (Some(imm), None) | (None, Some(imm)) => self.encode_imm(imm),
+                        _ => {
+                            // There should be at least one immediate operand:
+                            unreachable!("invalid operand")
+                        }
                     }
                 }
                 _ => unimplemented!("encoding: {:?}", code),
@@ -219,18 +239,15 @@ impl Encoder {
 
     fn encode_modrm_sib_bytes(
         &mut self,
-        reg_op: Option<&Operand>,
+        reg_op: Option<&Register>,
         reg_memory_op: Option<&Operand>,
         modrm_reg: Option<u8>,
     ) -> Result<(), RasError> {
         let (modrm_reg, rm) = if let Some(modrm_reg) = modrm_reg {
-            (
-                modrm_reg,
-                reg_op.map(|reg| reg.reg_num()).unwrap_or_default(),
-            )
+            (modrm_reg, reg_op.map(|reg| **reg as u8).unwrap_or_default())
         } else {
             (
-                reg_op.map(|reg| reg.reg_num()).unwrap_or_default(),
+                reg_op.map(|reg| **reg as u8).unwrap_or_default(),
                 reg_memory_op.map(|reg| reg.reg_num()).unwrap_or_default(),
             )
         };
@@ -353,6 +370,11 @@ impl Encoder {
             Immediate::Imm16(imm) => self.out.extend(imm.to_le_bytes().to_vec()),
             Immediate::Imm32(imm) => self.out.extend(imm.to_le_bytes().to_vec()),
         }
+    }
+
+    fn encode_reg_in_opcode(&mut self, opcode: u8, reg: &Register) {
+        let opcode = opcode + (0b00000111 & **reg as u8);
+        self.out.push(opcode);
     }
 }
 

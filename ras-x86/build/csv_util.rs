@@ -14,10 +14,4 @@ pub enum CsvHeader {
     Valid32,
     Valid16,
     FeatureFlags,
-    Operand1,
-    Operand2,
-    Operand3,
-    Operand4,
-    TupleType,
-    Description,
 }
