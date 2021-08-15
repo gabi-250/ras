@@ -1,160 +1,85 @@
+use crate::parsers::{
+    alt, encoding_bytecode, hex_byte, lit, map, opt, repeat_until, seq, tok, ParseResult,
+};
 use ras_x86_repr::{EncodingBytecode, InstructionEncoding, RexPrefix};
-use std::str::FromStr;
+use std::str::{self, FromStr};
 
-pub fn parse_opcode_column(inst: &str) -> InstructionEncoding {
-    let inst = inst.as_bytes();
+pub fn parse_opcode_column(inst: &str) -> ParseResult<InstructionEncoding> {
     let mut bytecode = vec![];
-    let (is_np, inst) = parse_np(inst);
-    let inst = parse_mandatory_prefix(inst, &mut bytecode);
-    let inst = parse_rex_prefix(inst, &mut bytecode);
-    let inst = parse_opcode(inst, &mut bytecode);
-    let _ = parse_modrm(inst, &mut bytecode);
+    let parse_np = map(tok(opt(lit("NP")), |c| is_separator(c)), |out| {
+        out.is_some()
+    });
+    let parse_mandatory_prefix = map(
+        tok(opt(alt(lit("66"), alt(lit("F2"), lit("F3")))), |c| {
+            is_separator(c)
+        }),
+        |prefix| {
+            prefix.map(|prefix| EncodingBytecode::Prefix(u8::from_str_radix(prefix, 16).unwrap()))
+        },
+    );
 
-    // TODO parse the remaining parts of the column
-
-    InstructionEncoding::new(bytecode, is_np)
-}
-
-fn is_separator(c: u8) -> bool {
-    c == b' ' || c == b'+'
-}
-
-fn skip_separators(s: &[u8], is_sep: impl Fn(u8) -> bool) -> &[u8] {
-    let mut i = 0;
-    while i < s.len() && is_sep(s[i]) {
-        i += 1;
-    }
-    &s[i..]
-}
-
-fn parse_np(inst: &[u8]) -> (bool, &[u8]) {
-    let i = if let Some(i) = inst.iter().position(|c| is_separator(*c)) {
-        i
-    } else {
-        return (false, inst);
-    };
-
-    if &inst[..i] == b"NP" {
-        (true, skip_separators(&inst[i..], &is_separator))
-    } else {
-        (false, inst)
-    }
-}
-
-fn parse_mandatory_prefix<'a>(inst: &'a [u8], bytecode: &mut Vec<EncodingBytecode>) -> &'a [u8] {
-    let i = if let Some(i) = inst.iter().position(|c| is_separator(*c)) {
-        i
-    } else {
-        return inst;
-    };
-
-    let (prefix, inst) = match &inst[..i] {
-        b"66" => (Some(0x66), skip_separators(&inst[i..], &is_separator)),
-        b"F2" => (Some(0xF2), skip_separators(&inst[i..], &is_separator)),
-        b"F3" => (Some(0xF3), skip_separators(&inst[i..], &is_separator)),
-        _ => (None, inst),
-    };
-
+    let (is_np, inst) = parse_np(inst)?;
+    let (prefix, inst) = parse_mandatory_prefix(inst)?;
     if let Some(prefix) = prefix {
-        bytecode.push(EncodingBytecode::Prefix(prefix));
+        bytecode.push(prefix);
     }
 
-    inst
+    let parse_rex_prefix = map(
+        tok(
+            opt(alt(
+                alt(
+                    lit("REX.W"),
+                    alt(lit("REX.R"), alt(lit("REX.X"), lit("REX.B"))),
+                ),
+                lit("REX"),
+            )),
+            |c| is_separator(c),
+        ),
+        |prefix| {
+            prefix.map(|prefix| {
+                let prefix = RexPrefix::from_str(prefix).expect("missing REX prefix");
+                EncodingBytecode::Rex(prefix)
+            })
+        },
+    );
+
+    let (rex_prefix, inst) = parse_rex_prefix(inst)?;
+
+    if let Some(rex_prefix) = rex_prefix {
+        bytecode.push(rex_prefix);
+    }
+
+    let parse_opcode = repeat_until(
+        tok(
+            alt(
+                map(hex_byte(), |out| EncodingBytecode::Opcode(out)),
+                encoding_bytecode(),
+            ),
+            |c| c == ' ',
+        ),
+        map(
+            seq(
+                tok(hex_byte(), |c| c == ' '),
+                alt(lit("+rb"), alt(lit("+rd"), lit("+rw"))),
+            ),
+            |(out, suffix)| match suffix {
+                "+rb" => EncodingBytecode::OpcodeRb(out),
+                "+rd" => EncodingBytecode::OpcodeRd(out),
+                "+rw" => EncodingBytecode::OpcodeRw(out),
+                s => unreachable!("invalid suffix: {}", s),
+            },
+        ),
+    );
+
+    let ((opcodes, opcode), _) = parse_opcode(inst)?;
+    bytecode.extend_from_slice(&opcodes);
+    if let Some(opcode) = opcode {
+        bytecode.push(opcode);
+    }
+    // TODO parse the remaining parts of the column
+    Ok(InstructionEncoding::new(bytecode, is_np))
 }
 
-fn parse_rex_prefix<'a>(inst: &'a [u8], bytecode: &mut Vec<EncodingBytecode>) -> &'a [u8] {
-    let i = if let Some(i) = inst.iter().position(|c| is_separator(*c)) {
-        i
-    } else {
-        return inst;
-    };
-
-    match RexPrefix::from_str(std::str::from_utf8(&inst[..i]).unwrap()) {
-        Ok(prefix) => {
-            bytecode.push(EncodingBytecode::Rex(prefix));
-            skip_separators(&inst[i..], &is_separator)
-        }
-        _ => inst,
-    }
-}
-
-fn parse_opcode<'a>(mut inst: &'a [u8], bytecode: &mut Vec<EncodingBytecode>) -> &'a [u8] {
-    loop {
-        if inst.len() < 2 {
-            break;
-        }
-
-        let maybe_op = std::str::from_utf8(&inst[0..2]).unwrap();
-        // Not an opcode after all...
-        if let Ok(op) = EncodingBytecode::from_str(&maybe_op) {
-            bytecode.push(op);
-            inst = skip_separators(&inst[2..], &is_separator);
-            break;
-        }
-
-        let op = match u8::from_str_radix(maybe_op, 16) {
-            Ok(op) => {
-                // skip over the separator
-                inst = skip_separators(&inst[2..], &is_separator);
-                op
-            }
-            Err(_) => break,
-        };
-
-        if inst.len() >= 2 {
-            match &inst[..2] {
-                b"rb" => {
-                    inst = &inst[2..];
-                    bytecode.push(EncodingBytecode::OpcodeRb(op));
-                }
-                b"rw" => {
-                    inst = &inst[2..];
-                    bytecode.push(EncodingBytecode::OpcodeRw(op));
-                }
-                b"rd" => {
-                    inst = &inst[2..];
-                    bytecode.push(EncodingBytecode::OpcodeRd(op));
-                }
-                b"ro" => {
-                    inst = &inst[2..];
-                    bytecode.push(EncodingBytecode::OpcodeRo(op));
-                }
-                _ => bytecode.push(EncodingBytecode::Opcode(op)),
-            }
-        } else {
-            bytecode.push(EncodingBytecode::Opcode(op));
-        }
-    }
-    inst
-}
-
-fn parse_modrm<'a>(mut inst: &'a [u8], bytecode: &mut Vec<EncodingBytecode>) -> &'a [u8] {
-    if inst.len() >= 2 && inst[0] == b'/' {
-        if inst[1] >= b'0' && inst[1] <= b'9' {
-            // The `/digit` case: the digit is the opcode extension encoded in the reg field of
-            // the ModR/M byte.
-            let ext = inst[1] - b'0';
-            bytecode.push(EncodingBytecode::ModRmWithReg(ext));
-            inst = &inst[2..];
-        } else if inst[1] == b'r' {
-            // The `/r` case: the ModR/M byte of the instruction contains a register operand and
-            // an r/m operand
-            bytecode.push(EncodingBytecode::ModRm);
-            inst = &inst[2..];
-        }
-    }
-
-    if inst.len() > 2 {
-        inst = skip_separators(&inst, &is_separator);
-
-        if inst.len() >= 2 {
-            let maybe_op = std::str::from_utf8(&inst[0..2]).unwrap();
-            if let Ok(op) = EncodingBytecode::from_str(&maybe_op) {
-                bytecode.push(op);
-                inst = skip_separators(&inst[2..], &is_separator);
-            }
-        }
-    }
-
-    inst
+fn is_separator(c: char) -> bool {
+    c == ' ' || c == '+'
 }

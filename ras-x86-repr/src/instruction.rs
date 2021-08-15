@@ -133,6 +133,16 @@ impl FromStr for EncodingBytecode {
             "cp" => Ok(EncodingBytecode::Cp),
             "ct" => Ok(EncodingBytecode::Ct),
             "/r" => Ok(EncodingBytecode::ModRm),
+            "/0" => Ok(EncodingBytecode::ModRmWithReg(0)),
+            "/1" => Ok(EncodingBytecode::ModRmWithReg(1)),
+            "/2" => Ok(EncodingBytecode::ModRmWithReg(2)),
+            "/3" => Ok(EncodingBytecode::ModRmWithReg(3)),
+            "/4" => Ok(EncodingBytecode::ModRmWithReg(4)),
+            "/5" => Ok(EncodingBytecode::ModRmWithReg(5)),
+            "/6" => Ok(EncodingBytecode::ModRmWithReg(6)),
+            "/7" => Ok(EncodingBytecode::ModRmWithReg(7)),
+            "/8" => Ok(EncodingBytecode::ModRmWithReg(8)),
+            "/9" => Ok(EncodingBytecode::ModRmWithReg(9)),
             _ => Err(format!("failed to parse EncodingBytecode: {}", s)),
         }
     }

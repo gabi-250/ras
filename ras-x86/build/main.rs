@@ -1,10 +1,12 @@
 mod csv_util;
 mod instruction;
 mod opcode;
+mod parsers;
 
 use csv_util::CsvHeader;
 use instruction::parse_instruction_column;
 use opcode::parse_opcode_column;
+use parsers::ParseResult;
 
 use std::collections::{HashMap, HashSet};
 use std::fs::{self, File};
@@ -17,7 +19,7 @@ use ras_x86_repr::{InstructionRepr, Mode};
 const INST_CSV: &str = "./x86-csv/x86.csv";
 const INST_MAP: &str = "../bin/map";
 
-fn main() {
+fn main() -> ParseResult<()> {
     let inst_csv = Path::new(env!("CARGO_MANIFEST_DIR")).join(INST_CSV);
     println!("cargo:rerun-if-changed={}", inst_csv.to_str().unwrap());
 
@@ -33,8 +35,8 @@ fn main() {
             continue;
         }
 
-        let (mnemonic, operands) = parse_instruction_column(get_header!(rec, Instruction));
-        let inst_enc = parse_opcode_column(get_header!(rec, Opcode));
+        let (mnemonic, operands) = parse_instruction_column(get_header!(rec, Instruction))?;
+        let inst_enc = parse_opcode_column(get_header!(rec, Opcode))?;
 
         let mut modes = vec![];
         if is_valid_mode(get_header!(rec, Valid16)) {
@@ -62,6 +64,8 @@ fn main() {
     fs::write(inst_map, bincode::serialize(&insts).unwrap()).unwrap();
 
     generate_mnemonic_enum(mnemonics);
+
+    Ok(())
 }
 
 fn generate_mnemonic_enum(mnemonics: HashSet<String>) {

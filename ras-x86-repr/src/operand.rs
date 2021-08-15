@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::str::FromStr;
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct OperandRepr {
@@ -143,4 +144,94 @@ pub enum OperandKind {
     M94M108Byte,
     /// m512byte
     M512Byte,
+}
+
+impl FromStr for OperandRepr {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "0" => Ok(OperandRepr::new(OperandKind::Zero, 8)),
+            "1" => Ok(OperandRepr::new(OperandKind::One, 8)),
+            "3" => Ok(OperandRepr::new(OperandKind::Three, 8)),
+            "Sreg" => Ok(OperandRepr::new(OperandKind::Sreg, 0)),
+            "CR0-CR7" => Ok(OperandRepr::new(OperandKind::Cr, 0)),
+            "CR8" => Ok(OperandRepr::new(OperandKind::Cr8, 0)),
+            "DR0-DR7" => Ok(OperandRepr::new(OperandKind::Dr, 0)),
+            "CS" => Ok(OperandRepr::new(OperandKind::Cs, 16)),
+            "DS" => Ok(OperandRepr::new(OperandKind::Ds, 16)),
+            "ES" => Ok(OperandRepr::new(OperandKind::Es, 16)),
+            "FS" => Ok(OperandRepr::new(OperandKind::Fs, 16)),
+            "GS" => Ok(OperandRepr::new(OperandKind::Gs, 16)),
+            "SS" => Ok(OperandRepr::new(OperandKind::Ss, 16)),
+            "CL" => Ok(OperandRepr::new(OperandKind::Cl, 8)),
+            "DX" => Ok(OperandRepr::new(OperandKind::Dx, 16)),
+            "AL" => Ok(OperandRepr::new(OperandKind::Al, 8)),
+            "AX" => Ok(OperandRepr::new(OperandKind::Al, 16)),
+            "EAX" => Ok(OperandRepr::new(OperandKind::Al, 32)),
+            "RAX" => Ok(OperandRepr::new(OperandKind::Al, 64)),
+            "reg" => Ok(OperandRepr::new(OperandKind::Reg, 64)),
+            // XXX the size isn't right
+            "r32/m16" => Ok(OperandRepr::new(OperandKind::R32M16, 32)),
+            "r64/m16" => Ok(OperandRepr::new(OperandKind::R64M16, 64)),
+            "r/m8" => Ok(OperandRepr::new(OperandKind::ModRmRegMem, 8)),
+            "r/m16" | "r16/m16" => Ok(OperandRepr::new(OperandKind::ModRmRegMem, 16)),
+            "r/m32" | "r32/m32" => Ok(OperandRepr::new(OperandKind::ModRmRegMem, 32)),
+            "r/m64" | "r64/m64" => Ok(OperandRepr::new(OperandKind::ModRmRegMem, 64)),
+            "r8" => Ok(OperandRepr::new(OperandKind::ModRmReg, 8)),
+            "r16" => Ok(OperandRepr::new(OperandKind::ModRmReg, 16)),
+            "r32" => Ok(OperandRepr::new(OperandKind::ModRmReg, 32)),
+            "r64" => Ok(OperandRepr::new(OperandKind::ModRmReg, 64)),
+            "imm8" => Ok(OperandRepr::new(OperandKind::Imm, 8)),
+            "imm16" => Ok(OperandRepr::new(OperandKind::Imm, 16)),
+            "imm32" => Ok(OperandRepr::new(OperandKind::Imm, 32)),
+            "imm64" => Ok(OperandRepr::new(OperandKind::Imm, 64)),
+            "moffs8" => Ok(OperandRepr::new(OperandKind::Moffs, 8)),
+            "moffs16" => Ok(OperandRepr::new(OperandKind::Moffs, 16)),
+            "moffs32" => Ok(OperandRepr::new(OperandKind::Moffs, 32)),
+            "moffs64" => Ok(OperandRepr::new(OperandKind::Moffs, 64)),
+            "m16&16" => Ok(OperandRepr::new(OperandKind::M16And16, 32)),
+            "m16&32" => Ok(OperandRepr::new(OperandKind::M16And16, 48)),
+            "m32&32" => Ok(OperandRepr::new(OperandKind::M16And16, 64)),
+            "m16&64" => Ok(OperandRepr::new(OperandKind::M16And16, 80)),
+            "rel8" => Ok(OperandRepr::new(OperandKind::Rel8, 8)),
+            "rel16" => Ok(OperandRepr::new(OperandKind::Rel16, 16)),
+            "rel32" => Ok(OperandRepr::new(OperandKind::Rel32, 32)),
+            "m" | "mem" => Ok(OperandRepr::new(OperandKind::M, 64)),
+            "m8" => Ok(OperandRepr::new(OperandKind::M8, 8)),
+            "m16" => Ok(OperandRepr::new(OperandKind::M16, 16)),
+            "m32" => Ok(OperandRepr::new(OperandKind::M32, 32)),
+            "m64" => Ok(OperandRepr::new(OperandKind::M64, 64)),
+            "m128" => Ok(OperandRepr::new(OperandKind::M128, 128)),
+            // XXX check the sizes:
+            "ptr16:16" => Ok(OperandRepr::new(OperandKind::FarPointer16, 16)),
+            "ptr16:32" => Ok(OperandRepr::new(OperandKind::FarPointer16, 32)),
+            "m16:16" => Ok(OperandRepr::new(OperandKind::MemIndirectFarPointer16, 16)),
+            "m16:32" => Ok(OperandRepr::new(OperandKind::MemIndirectFarPointer16, 32)),
+            "m16:64" => Ok(OperandRepr::new(OperandKind::MemIndirectFarPointer16, 64)),
+            "mm" => Ok(OperandRepr::new(OperandKind::Mm, 64)),
+            "mm1" => Ok(OperandRepr::new(OperandKind::Mm1, 64)),
+            "mm2" => Ok(OperandRepr::new(OperandKind::Mm2, 64)),
+            "mm2/m64" => Ok(OperandRepr::new(OperandKind::Mm2M64, 64)),
+            "mm/m64" => Ok(OperandRepr::new(OperandKind::MmM64, 64)),
+            "xmm" => Ok(OperandRepr::new(OperandKind::Mm, 128)),
+            "xmm/m64" => Ok(OperandRepr::new(OperandKind::XmmM64, 64)),
+            "xmm/m128" => Ok(OperandRepr::new(OperandKind::XmmM128, 128)),
+            "m32fp" => Ok(OperandRepr::new(OperandKind::M32Fp, 32)),
+            "m64fp" => Ok(OperandRepr::new(OperandKind::M64Fp, 64)),
+            "m80fp" => Ok(OperandRepr::new(OperandKind::M80Fp, 80)),
+            "m16int" => Ok(OperandRepr::new(OperandKind::M16Int, 16)),
+            "m32int" => Ok(OperandRepr::new(OperandKind::M32Int, 32)),
+            "m64int" => Ok(OperandRepr::new(OperandKind::M64Int, 64)),
+            "ST" | "ST(0)" => Ok(OperandRepr::new(OperandKind::St0, 80)),
+            "ST(i)" => Ok(OperandRepr::new(OperandKind::Sti, 80)),
+            // The CSV uses m80dec instead of m80bcd
+            "m80dec" | "m80bcd" => Ok(OperandRepr::new(OperandKind::M80Bcd, 80)),
+            "m2byte" => Ok(OperandRepr::new(OperandKind::M2Byte, 0)),
+            "m14/28byte" => Ok(OperandRepr::new(OperandKind::M14M28Byte, 0)),
+            "m94/108byte" => Ok(OperandRepr::new(OperandKind::M94M108Byte, 0)),
+            "m512byte" => Ok(OperandRepr::new(OperandKind::M512Byte, 0)),
+            _ => Err(format!("failed to parse OperandKind: {}", s)),
+        }
+    }
 }

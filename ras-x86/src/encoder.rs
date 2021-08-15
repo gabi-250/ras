@@ -18,7 +18,7 @@ pub(crate) struct Fixup {
 #[derive(Default)]
 pub(crate) struct Encoder {
     pub out: Vec<u8>,
-    pub mode: Mode,
+    mode: Mode,
     rel_jmp_fixups: HashMap<SymbolId, Vec<Fixup>>,
 }
 
@@ -100,7 +100,7 @@ impl Encoder {
                     self.out.push((*rex_prefix).into());
                 }
                 EncodingBytecode::Opcode(opcode) => self.out.push(*opcode),
-                _ => unreachable!("invalid code: {:?}", code),
+                _ => unimplemented!("encoding: {:?}", code),
             }
         }
 
@@ -361,7 +361,7 @@ impl Encoder {
         unimplemented!()
     }
 
-    /// Encode `imm` to have the specified `size`, sign-extending if needed.
+    /// Encode an immediate.
     fn encode_imm(&mut self, imm: Immediate) {
         // XXX: MOV r64, imm64 supports 64-bit immediates
         // Can't use more than 32 bits for the immediate.
