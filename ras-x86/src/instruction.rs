@@ -70,7 +70,7 @@ impl Instruction {
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use crate::register::{RAX, RBX, RCX};
+    use crate::{RAX, RBX, RCX};
 
     macro_rules! encode_instr {
         ($opcode:ident, $($operands:expr),*) => {{

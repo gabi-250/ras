@@ -46,7 +46,7 @@ macro_rules! imm64 {
 #[macro_export]
 macro_rules! sib {
     ($($seg:expr)?; $($disp:expr)?; ($($base:expr)?, $($index:expr)?, $($scale:expr)?)) => {{
-        let _seg: Option<$crate::register::Register> = None;
+        let _seg: Option<$crate::operand::Register> = None;
         $(
             let _seg = Some(*$seg);
         )*
@@ -56,12 +56,12 @@ macro_rules! sib {
             let _disp = Some($disp);
         )*
 
-        let _base: Option<$crate::register::Register> = None;
+        let _base: Option<$crate::operand::Register> = None;
         $(
             let _base = Some(*$base);
         )*
 
-        let _index: Option<$crate::register::Register> = None;
+        let _index: Option<$crate::operand::Register> = None;
         $(
             let _index = Some(*$index);
         )*

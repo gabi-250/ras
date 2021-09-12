@@ -2,9 +2,8 @@ use ras_x86::assembler::{Assembler, Item};
 use ras_x86::instruction::Instruction;
 use ras_x86::mnemonic::Mnemonic;
 use ras_x86::operand::{Immediate, Memory, MemoryRel, Operand};
-use ras_x86::register::RAX;
 use ras_x86::symbol::{Symbol, SymbolAttribute, SymbolType};
-use ras_x86::RasResult;
+use ras_x86::{RasResult, RAX};
 
 use std::env;
 use std::fs::File;

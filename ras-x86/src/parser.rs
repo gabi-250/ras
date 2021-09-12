@@ -1,8 +1,7 @@
 use crate::assembler::Item;
 use crate::error::ParseError;
 use crate::instruction::Instruction;
-use crate::operand::{Immediate, Memory, Operand};
-use crate::register::Register;
+use crate::operand::{Immediate, Memory, Operand, Register};
 use crate::Mnemonic;
 use crate::{RasError, RasResult};
 
@@ -141,8 +140,7 @@ impl<'a> OperandParser<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::register::{RAX, RCX};
-    use crate::{i, imm16, imm32, imm8, reg, RasError};
+    use crate::{i, imm16, imm32, imm8, reg, RasError, RAX, RCX};
 
     #[test]
     fn no_operands() {

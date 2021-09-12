@@ -1,7 +1,8 @@
 use crate::assembler::{InstructionPointer, SymbolId};
 use crate::error::RasError;
-use crate::operand::{Immediate, ImmediateSize, Memory, MemoryRel, Operand, Scale};
-use crate::register::{Register, RegisterNum};
+use crate::operand::{
+    Immediate, ImmediateSize, Memory, MemoryRel, Operand, Register, RegisterNum, Scale,
+};
 use crate::repr::{EncodingBytecode, InstructionRepr, OperandRepr, Prefix};
 use crate::symbol::Symbol;
 use crate::Mode;

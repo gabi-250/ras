@@ -1,4 +1,3 @@
-use lazy_static::lazy_static;
 use std::convert::TryFrom;
 use std::ops::Deref;
 
@@ -18,14 +17,21 @@ macro_rules! decl_reg {
     }
 }
 
-decl_reg!(RAX, EAX, AX, AL, AH - Rax);
-decl_reg!(RBX, EBX, BX, BL, BH - Rbx);
-decl_reg!(RCX, ECX, CX, CL, CH - Rcx);
-decl_reg!(RDX, EDX, DX, DL, DH - Rdx);
-decl_reg!(RDI, EDI, DI, DIL - Rdi);
-decl_reg!(RSI, ESI, SI, SIL - Rsi);
-decl_reg!(RBP, EBP, BP, BPL - Rbp);
-decl_reg!(RSP, ESP, SP - Rsp);
+pub(crate) mod reg_defs {
+    use super::*;
+    use lazy_static::lazy_static;
+
+    decl_reg!(RAX, EAX, AX, AL, AH - Rax);
+    decl_reg!(RBX, EBX, BX, BL, BH - Rbx);
+    decl_reg!(RCX, ECX, CX, CL, CH - Rcx);
+    decl_reg!(RDX, EDX, DX, DL, DH - Rdx);
+    decl_reg!(RDI, EDI, DI, DIL - Rdi);
+    decl_reg!(RSI, ESI, SI, SIL - Rsi);
+    decl_reg!(RBP, EBP, BP, BPL - Rbp);
+    decl_reg!(RSP, ESP, SP - Rsp);
+}
+
+use reg_defs::*;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Register {

@@ -7,9 +7,9 @@ pub mod mnemonic;
 mod object;
 pub mod operand;
 pub mod parser;
-pub mod register;
 pub mod symbol;
 
+pub use crate::operand::register::reg_defs::*;
 pub use error::RasError;
 pub use mnemonic::Mnemonic;
 pub use ras_x86_repr as repr;
@@ -21,9 +21,9 @@ pub type RasResult<T> = Result<T, RasError>;
 mod tests {
     use crate::assembler::{Assembler, Item};
     use crate::operand::Scale;
-    use crate::register::{AL, AX, BX, CX, EAX, EBX, EDX, RAX, RBP, RBX, RCX, RDX, RSP};
     use crate::symbol::{Symbol, SymbolAttribute, SymbolType};
     use crate::{i, imm16, imm32, imm8, label, reg, sib, RasError};
+    use crate::{AL, AX, BX, CX, EAX, EBX, EDX, RAX, RBP, RBX, RCX, RDX, RSP};
 
     macro_rules! assert_encoding_eq {
         ([$($expected:expr),*], $($inst:expr),*) => {{
