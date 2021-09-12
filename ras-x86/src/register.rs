@@ -1,5 +1,8 @@
 use lazy_static::lazy_static;
+use std::convert::TryFrom;
 use std::ops::Deref;
+
+use crate::error::ParseError;
 
 macro_rules! decl_reg {
     ($name64:ident, $name32:ident, $name16:ident $(, $name8lo:ident $(, $name8hi:ident)?)? - $reg_name:ident) => {
@@ -55,6 +58,57 @@ impl Deref for Register {
         match self {
             Register8Hi(r) | Register8Lo(r) | Register16(r) | Register32(r) | Register64(r) => r,
         }
+    }
+}
+
+impl TryFrom<&[u8]> for Register {
+    type Error = ParseError;
+
+    fn try_from(s: &[u8]) -> Result<Self, Self::Error> {
+        let reg = match &s.to_ascii_lowercase()[..] {
+            b"rax" => *RAX,
+            b"eax" => *EAX,
+            b"ax" => *AX,
+            b"ah" => *AH,
+            b"al" => *AL,
+            b"rbx" => *RBX,
+            b"ebx" => *EBX,
+            b"bx" => *BX,
+            b"bh" => *BH,
+            b"bl" => *BL,
+            b"rcx" => *RCX,
+            b"ecx" => *ECX,
+            b"cx" => *CX,
+            b"ch" => *CH,
+            b"cl" => *CL,
+            b"rdx" => *RDX,
+            b"edx" => *EDX,
+            b"dx" => *DX,
+            b"dh" => *DH,
+            b"dl" => *DL,
+            b"rdi" => *RDI,
+            b"edi" => *EDI,
+            b"di" => *DI,
+            b"dil" => *DIL,
+            b"rsi" => *RSI,
+            b"esi" => *ESI,
+            b"si" => *SI,
+            b"sil" => *SIL,
+            b"rbp" => *RBP,
+            b"ebp" => *EBP,
+            b"bp" => *BP,
+            b"bpl" => *BPL,
+            b"rsp" => *RSP,
+            b"esp" => *ESP,
+            b"sp" => *SP,
+            s => {
+                return Err(ParseError::InvalidRegister(
+                    String::from_utf8_lossy(s).into(),
+                ))
+            }
+        };
+
+        Ok(reg)
     }
 }
 

@@ -1,6 +1,6 @@
 use crate::assembler::{InstructionPointer, SymbolId};
 use crate::error::RasError;
-use crate::operand::{Immediate, Memory, MemoryRel, Operand, Scale};
+use crate::operand::{Immediate, ImmediateSize, Memory, MemoryRel, Operand, Scale};
 use crate::register::{Register, RegisterNum};
 use crate::repr::{EncodingBytecode, InstructionRepr, OperandRepr, Prefix};
 use crate::symbol::Symbol;
@@ -125,7 +125,7 @@ impl Encoder {
                 }
                 EncodingBytecode::Prefix(prefix) => self.out.push(*prefix),
                 EncodingBytecode::Opcode(opcode) => {
-                    if self.needs_operand_size_prefix(&inst_repr, operand.size()) {
+                    if self.needs_operand_size_prefix(inst_repr, operand.size()) {
                         self.out.push(Prefix::OperandSize.into());
                     }
                     self.out.push(*opcode)
@@ -133,7 +133,7 @@ impl Encoder {
                 EncodingBytecode::OpcodeRw(opcode)
                 | EncodingBytecode::OpcodeRb(opcode)
                 | EncodingBytecode::OpcodeRd(opcode) => {
-                    if self.needs_operand_size_prefix(&inst_repr, operand.size()) {
+                    if self.needs_operand_size_prefix(inst_repr, operand.size()) {
                         self.out.push(Prefix::OperandSize.into());
                     }
                     match reg_op {
@@ -154,15 +154,21 @@ impl Encoder {
                 EncodingBytecode::Cd => {
                     if let Some(Operand::Memory(Memory::Relative(rel))) = reg_memory_op {
                         let operand_repr = inst_repr.operands[0];
-                        self.encode_rel_memory_offset(&rel, operand_repr);
+                        self.encode_rel_memory_offset(rel, operand_repr);
                     }
                 }
-                EncodingBytecode::Ib | EncodingBytecode::Iw | EncodingBytecode::Id => {
-                    match operand.immediate() {
-                        Some(imm) => self.encode_imm(imm),
-                        None => unreachable!("invalid operand"),
-                    }
-                }
+                EncodingBytecode::Ib => match operand.immediate() {
+                    Some(imm) => self.encode_imm(imm.sign_extend(ImmediateSize::Imm8)?),
+                    None => unreachable!("invalid operand"),
+                },
+                EncodingBytecode::Iw => match operand.immediate() {
+                    Some(imm) => self.encode_imm(imm.sign_extend(ImmediateSize::Imm16)?),
+                    None => unreachable!("invalid operand"),
+                },
+                EncodingBytecode::Id => match operand.immediate() {
+                    Some(imm) => self.encode_imm(imm.sign_extend(ImmediateSize::Imm32)?),
+                    None => unreachable!("invalid operand"),
+                },
                 _ => unimplemented!("encoding: {:?}", code),
             }
         }
@@ -203,7 +209,7 @@ impl Encoder {
                 }
                 EncodingBytecode::Prefix(prefix) => self.out.push(*prefix),
                 EncodingBytecode::Opcode(opcode) => {
-                    if self.needs_operand_size_prefix(&inst_repr, op_size) {
+                    if self.needs_operand_size_prefix(inst_repr, op_size) {
                         self.out.push(Prefix::OperandSize.into());
                     }
                     self.out.push(*opcode)
@@ -217,13 +223,37 @@ impl Encoder {
                 EncodingBytecode::Cd => {
                     if let Some(Operand::Memory(Memory::Relative(rel))) = reg_memory_op {
                         let operand_repr = inst_repr.operands[0];
-                        self.encode_rel_memory_offset(&rel, operand_repr);
+                        self.encode_rel_memory_offset(rel, operand_repr);
                     }
                 }
-                EncodingBytecode::Ib | EncodingBytecode::Iw | EncodingBytecode::Id => {
+                EncodingBytecode::Ib => {
                     // Do we need to encode an immediate?
                     match (op1.immediate(), op2.immediate()) {
                         (Some(imm), None) | (None, Some(imm)) => self.encode_imm(imm),
+                        _ => {
+                            // There should be at least one immediate operand:
+                            unreachable!("invalid operand")
+                        }
+                    }
+                }
+                EncodingBytecode::Iw => {
+                    // Do we need to encode an immediate?
+                    match (op1.immediate(), op2.immediate()) {
+                        (Some(imm), None) | (None, Some(imm)) => {
+                            self.encode_imm(imm.sign_extend(ImmediateSize::Imm16)?)
+                        }
+                        _ => {
+                            // There should be at least one immediate operand:
+                            unreachable!("invalid operand")
+                        }
+                    }
+                }
+                EncodingBytecode::Id => {
+                    // Do we need to encode an immediate?
+                    match (op1.immediate(), op2.immediate()) {
+                        (Some(imm), None) | (None, Some(imm)) => {
+                            self.encode_imm(imm.sign_extend(ImmediateSize::Imm32)?)
+                        }
                         _ => {
                             // There should be at least one immediate operand:
                             unreachable!("invalid operand")
@@ -309,7 +339,7 @@ impl Encoder {
 
     fn encode_rel_memory_offset(&mut self, rel: &MemoryRel, operand_repr: OperandRepr) {
         match rel {
-            MemoryRel::Immediate(_imm) => unimplemented!("imm memory offset"),
+            MemoryRel::Absolute(_imm) => unimplemented!("imm memory offset"),
             MemoryRel::Label(symbol_id) => {
                 let size = (operand_repr.size() / 8) as usize;
                 let fixup = Fixup {

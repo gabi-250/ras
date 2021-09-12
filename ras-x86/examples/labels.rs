@@ -7,6 +7,7 @@ use ras_x86::symbol::{Symbol, SymbolAttribute, SymbolType};
 use ras_x86::RasResult;
 
 use std::env;
+use std::fs::File;
 
 fn main() -> RasResult<()> {
     let mut args = env::args();
@@ -58,7 +59,7 @@ fn main() -> RasResult<()> {
         )],
     );
     asm.assemble()?;
-    asm.write_obj(out_file)?;
+    asm.write_obj(File::create(out_file)?)?;
 
     Ok(())
 }

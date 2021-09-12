@@ -25,7 +25,7 @@ impl ObjectWriter {
         const ALIGN: u64 = 8;
 
         self.obj
-            .append_section_data(self.text_section_id, &text_section, ALIGN);
+            .append_section_data(self.text_section_id, text_section, ALIGN);
     }
 
     pub fn add_text_symbol(&mut self, sym_id: &str, sym: &Symbol) {

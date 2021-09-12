@@ -10,7 +10,7 @@ pub fn hex_byte() -> impl Fn(&str) -> ParseResult<(u8, &str)> {
             return Err(format!("invalid hex byte: {}", input));
         }
         // e.g. "cb" should not be parsed as a hex byte
-        if input[..2].chars().any(|c| char::is_lowercase(c)) {
+        if input[..2].chars().any(char::is_lowercase) {
             return Err("hex digits must be uppercase chars".into());
         }
 

@@ -6,9 +6,7 @@ use std::str::{self, FromStr};
 
 pub fn parse_opcode_column(inst: &str) -> ParseResult<InstructionEncoding> {
     let mut bytecode = vec![];
-    let parse_np = map(tok(opt(lit("NP")), |c| is_separator(c)), |out| {
-        out.is_some()
-    });
+    let parse_np = map(tok(opt(lit("NP")), is_separator), |out| out.is_some());
     let parse_mandatory_prefix = map(
         tok(opt(alt(lit("66"), alt(lit("F2"), lit("F3")))), |c| {
             is_separator(c)
@@ -33,7 +31,7 @@ pub fn parse_opcode_column(inst: &str) -> ParseResult<InstructionEncoding> {
                 ),
                 lit("REX"),
             )),
-            |c| is_separator(c),
+            is_separator,
         ),
         |prefix| {
             prefix.map(|prefix| {
@@ -52,7 +50,7 @@ pub fn parse_opcode_column(inst: &str) -> ParseResult<InstructionEncoding> {
     let parse_opcode = repeat_until(
         tok(
             alt(
-                map(hex_byte(), |out| EncodingBytecode::Opcode(out)),
+                map(hex_byte(), EncodingBytecode::Opcode),
                 encoding_bytecode(),
             ),
             |c| c == ' ',

@@ -5,7 +5,6 @@ use crate::{Mode, RasError, RasResult};
 
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
-use std::fs::File;
 use std::io::Write;
 
 pub use crate::symbol::{InstructionPointer, Symbol, SymbolId, SymbolType};
@@ -18,7 +17,7 @@ pub struct Assembler {
 }
 
 impl Assembler {
-    pub fn new_long(items: Vec<impl Into<Item>>, symbols: &[(SymbolId, Symbol)]) -> Self {
+    pub fn new_long<I: Into<Item>>(items: Vec<I>, symbols: &[(SymbolId, Symbol)]) -> Self {
         let mode = Mode::Long;
 
         Self {
@@ -65,7 +64,7 @@ impl Assembler {
         &self.encoder.out
     }
 
-    pub fn write_obj(&self, file: impl AsRef<str>) -> RasResult<()> {
+    pub fn write_obj(&self, mut writer: impl Write) -> RasResult<()> {
         let mut obj = ObjectWriter::new(self.mode);
 
         obj.append_text_section(&self.encoder.out);
@@ -74,11 +73,12 @@ impl Assembler {
             obj.add_text_symbol(sym_id, sym);
         }
 
-        File::create(file.as_ref())?.write_all(&obj.write()?)?;
+        writer.write_all(&obj.write()?)?;
         Ok(())
     }
 }
 
+#[derive(Debug, PartialEq)]
 pub enum Item {
     Label(SymbolId),
     Instruction(Instruction),

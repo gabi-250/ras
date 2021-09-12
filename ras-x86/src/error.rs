@@ -15,6 +15,38 @@ pub enum RasError {
     MissingInstructionRepr(Mnemonic),
     Object(write::Error),
     Io(io::Error),
+    Parse(ParseError),
+    SignExtend(String),
+}
+
+impl Display for ParseError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), fmt::Error> {
+        match self {
+            ParseError::InvalidMnemonic(m) => write!(f, "unknown mnemonic: {}", m),
+            ParseError::InvalidRegister(r) => write!(f, "invalid register: {}", r),
+            ParseError::InvalidImmediate(imm) => write!(f, "invalid immediate: {}", imm),
+            ParseError::UnexpectedEof => write!(f, "unexpected end of input"),
+            ParseError::UnexpectedChar(c) => write!(f, "unexpected char {}", c),
+        }
+    }
+}
+
+impl Error for ParseError {}
+
+#[derive(Debug, PartialEq)]
+pub enum ParseError {
+    InvalidMnemonic(String),
+    InvalidImmediate(String),
+    InvalidRegister(String),
+    UnexpectedEof,
+    // TODO
+    UnexpectedChar(char),
+}
+
+impl From<ParseError> for RasError {
+    fn from(err: ParseError) -> Self {
+        RasError::Parse(err)
+    }
 }
 
 impl PartialEq for RasError {
@@ -29,6 +61,8 @@ impl PartialEq for RasError {
             (UndefinedSymbols(s1), UndefinedSymbols(s2)) => s1 == s2,
             (MissingInstructionRepr(s1), MissingInstructionRepr(s2)) => s1 == s2,
             (Object(s1), Object(s2)) => s1 == s2,
+            (Parse(p1), Parse(p2)) => p1 == p2,
+            (SignExtend(z1), SignExtend(z2)) => z1 == z2,
             _ => false,
         }
     }
@@ -53,6 +87,8 @@ impl Display for RasError {
             }
             Object(err) => write!(f, "{}", err),
             Io(err) => write!(f, "{}", err),
+            Parse(err) => write!(f, "{}", err),
+            SignExtend(err) => write!(f, "sign extend error: {}", err),
         }
     }
 }

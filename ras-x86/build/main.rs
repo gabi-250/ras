@@ -83,18 +83,21 @@ fn generate_mnemonic_enum(mnemonics: HashSet<String>) {
         use std::hash::Hash;
         use std::str::FromStr;
 
+        use crate::error::ParseError;
+
         #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Hash, Serialize, Deserialize)]
         pub enum Mnemonic {
             #(#variants),*
         }
 
         impl FromStr for Mnemonic {
-            type Err = String;
+            type Err = ParseError;
 
             fn from_str(s: &str) -> Result<Self, Self::Err> {
-                match s {
+                let upper = s.to_ascii_uppercase();
+                match upper.as_str() {
                     #( #mnemonics => Ok(Mnemonic::#variants), )*
-                    s => Err(format!("unknown mnemonic: {}", s))
+                    _ => Err(ParseError::InvalidMnemonic(s.to_string()))
                 }
             }
         }

@@ -6,6 +6,7 @@ mod macros;
 pub mod mnemonic;
 mod object;
 pub mod operand;
+pub mod parser;
 pub mod register;
 pub mod symbol;
 
@@ -70,20 +71,17 @@ mod tests {
     }
 
     #[test]
-    fn xor_ax_imm16() {
-        assert_encoding_eq!([0x66, 0x35, 0x01, 0x01], i!(XOR, reg!(AX), imm16!(0x101)));
+    fn add_imm_rax() {
+        //assert_encoding_eq!([0x66, 0x05, 0x00, 0x01], i!(ADD, reg!(AX), imm16!(0x100)));
+        assert_encoding_eq!(
+            [0x05, 0x00, 0x01, 0x00, 0x00],
+            i!(ADD, reg!(EAX), imm16!(0x100))
+        );
     }
 
     #[test]
-    fn xor_eax_imm32() {
-        assert_encoding_eq!(
-            // XXX: This could be encoded more efficiently by using the XOR r/m32, imm8 variant of
-            // the instruction instead (0xffffffff is 32-bit -1, but we could represent also it as
-            // an 8-bit value).
-            //[0x83, 0xf0, 0xff],
-            [0x35, 0xff, 0xff, 0xff, 0xff],
-            i!(XOR, reg!(EAX), imm32!(0xffffffff))
-        );
+    fn xor_ax_imm16() {
+        assert_encoding_eq!([0x66, 0x35, 0x01, 0x01], i!(XOR, reg!(AX), imm16!(0x101)));
     }
 
     #[test]
@@ -97,6 +95,7 @@ mod tests {
     #[test]
     fn add_ebx_imm8() {
         assert_encoding_eq!([0x83, 0b11000011, 0x2], i!(ADD, reg!(EBX), imm8!(0x2)));
+        assert_encoding_eq!([0x83, 0xf0, 0xff], i!(XOR, reg!(EAX), imm8!(-1)));
     }
 
     #[test]

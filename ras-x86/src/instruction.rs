@@ -22,6 +22,7 @@ lazy_static! {
     };
 }
 
+#[derive(Debug, PartialEq)]
 pub struct Instruction {
     mnemonic: Mnemonic,
     operands: Vec<Operand>,
