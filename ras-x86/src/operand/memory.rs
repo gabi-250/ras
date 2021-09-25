@@ -1,5 +1,7 @@
+use crate::error::ParseError;
 use crate::operand::{Immediate, Register};
 use crate::symbol::SymbolId;
+use std::convert::TryFrom;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Memory {
@@ -27,6 +29,12 @@ pub enum Scale {
     Word = 0b01,
     Double = 0b10,
     Quad = 0b11,
+}
+
+impl Default for Scale {
+    fn default() -> Self {
+        Scale::Byte
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -88,6 +96,26 @@ impl Moffs {
             Self::Moffs16(_) => 16,
             Self::Moffs32(_) => 32,
             Self::Moffs64(_) => 64,
+        }
+    }
+}
+
+impl TryFrom<&[u8]> for Moffs {
+    type Error = ParseError;
+
+    fn try_from(moffs: &[u8]) -> Result<Self, Self::Error> {
+        let moffs = String::from_utf8_lossy(moffs);
+        let moffs = moffs.as_ref();
+        if let Ok(moffs) = moffs.parse::<u8>() {
+            Ok(Moffs::Moffs8(moffs))
+        } else if let Ok(moffs) = moffs.parse::<u16>() {
+            Ok(Moffs::Moffs16(moffs))
+        } else if let Ok(moffs) = moffs.parse::<u32>() {
+            Ok(Moffs::Moffs32(moffs))
+        } else if let Ok(moffs) = moffs.parse::<u64>() {
+            Ok(Moffs::Moffs64(moffs))
+        } else {
+            Err(ParseError::InvalidMemoryOffset(moffs.into()))
         }
     }
 }

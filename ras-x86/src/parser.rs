@@ -1,7 +1,7 @@
 use crate::assembler::Item;
 use crate::error::ParseError;
 use crate::instruction::Instruction;
-use crate::operand::{Immediate, Memory, Operand, Register};
+use crate::operand::{Immediate, Memory, Moffs, Operand, Register, Scale};
 use crate::Mnemonic;
 use crate::{RasError, RasResult};
 
@@ -71,36 +71,115 @@ impl<'a> OperandParser<'a> {
 
     fn parse_single_operand(&mut self) -> RasResult<Operand> {
         if self.pos >= self.input.len() {
-            return Err(ParseError::UnexpectedEof).map_err(RasError::from);
+            return Err(ParseError::UnexpectedEof.into());
         }
-
         match self.input[self.pos] {
-            b'%' => {
-                self.pos += 1;
-                self.parse_register().map(Operand::Register)
-            }
-            b'$' => {
-                self.pos += 1;
-                self.parse_immediate().map(Operand::Immediate)
-            }
+            b'%' => self.parse_register().map(Operand::Register),
+            b'$' => self.parse_immediate().map(Operand::Immediate),
+            b'0'..=b'9' | b'(' => self.parse_memory().map(Operand::Memory),
             c => Err(ParseError::UnexpectedChar(c.into()).into()),
         }
     }
 
     fn parse_register(&mut self) -> RasResult<Register> {
+        self.advance_or_eof()?;
         let start = self.pos;
         self.skip_while_alnum();
         Register::try_from(&self.input[start..self.pos]).map_err(RasError::from)
     }
 
     fn parse_immediate(&mut self) -> RasResult<Immediate> {
+        self.advance_or_eof()?;
         let start = self.pos;
         self.skip_while_num();
         Immediate::try_from(&self.input[start..self.pos]).map_err(RasError::from)
     }
 
     fn parse_memory(&mut self) -> RasResult<Memory> {
-        unimplemented!();
+        let start = self.pos;
+        self.skip_while_num();
+
+        let offset = if self.pos > start {
+            Some(&self.input[start..self.pos])
+        } else {
+            None
+        };
+
+        if self.pos == self.input.len() && self.input[self.pos] == b'(' {
+            return Err(ParseError::UnexpectedEof.into());
+        }
+
+        if self.pos < self.input.len() && self.input[self.pos] == b'(' {
+            self.parse_sib(
+                offset
+                    .map(|v| String::from_utf8_lossy(v).parse::<u64>())
+                    .transpose()?,
+            )
+        } else {
+            // It's safe to unwrap here, because parse_memory is only called if the next character
+            // is a digit or an opening parenthesis.
+            let moffs = offset.unwrap();
+            let moffs = Moffs::try_from(moffs)?;
+            Ok(Memory::Moffs(moffs))
+        }
+    }
+
+    fn parse_sib(&mut self, displacement: Option<u64>) -> RasResult<Memory> {
+        self.advance_or_eof()?;
+        if self.pos >= self.input.len() {
+            return Err(ParseError::UnexpectedEof.into());
+        }
+
+        let base = self.maybe_parse_sib_register()?;
+        let index = self.maybe_parse_sib_register()?;
+        let scale = match self.input[self.pos] {
+            b')' => {
+                self.pos += 1;
+                return Ok(Memory::sib(None, base, index, Scale::Byte, displacement));
+            }
+            b'1' => Scale::Byte,
+            b'2' => Scale::Word,
+            b'4' => Scale::Double,
+            b'8' => Scale::Quad,
+            c => return Err(ParseError::UnexpectedChar(c.into()).into()),
+        };
+        self.advance_or_eof()?;
+        self.try_consume_char(b')')?;
+
+        Ok(Memory::sib(None, base, index, scale, displacement))
+    }
+
+    fn maybe_parse_sib_register(&mut self) -> RasResult<Option<Register>> {
+        let reg = match self.input[self.pos] {
+            b'%' => {
+                let reg = Some(self.parse_register()?);
+                self.try_consume_char(b',')?;
+                reg
+            }
+            b',' => {
+                self.advance_or_eof()?;
+                None
+            }
+            c => return Err(ParseError::UnexpectedChar(c.into()).into()),
+        };
+        self.skip_whitespace();
+        Ok(reg)
+    }
+
+    fn advance_or_eof(&mut self) -> RasResult<()> {
+        self.pos += 1;
+        if self.pos >= self.input.len() {
+            return Err(ParseError::UnexpectedEof.into());
+        }
+        Ok(())
+    }
+
+    fn try_consume_char(&mut self, b: u8) -> RasResult<()> {
+        if self.input[self.pos] != b {
+            return Err(ParseError::UnexpectedChar(self.input[self.pos].into()).into());
+        }
+        self.pos += 1;
+        Ok(())
     }
 
     fn skip_while_alnum(&mut self) {
@@ -118,21 +197,21 @@ impl<'a> OperandParser<'a> {
         }
     }
 
+    fn skip_whitespace(&mut self) {
+        while self.pos < self.input.len() && self.input[self.pos].is_ascii_whitespace() {
+            self.pos += 1;
+        }
+    }
+
     fn skip_until_next_operand(&mut self) -> bool {
         if self.pos >= self.input.len() {
             return false;
         }
-
         let has_more_operands = self.input[self.pos] == b',';
-
         if has_more_operands {
             self.pos += 1;
         }
-
-        while self.pos < self.input.len() && self.input[self.pos].is_ascii_whitespace() {
-            self.pos += 1;
-        }
-
+        self.skip_whitespace();
         has_more_operands
     }
 }
@@ -165,7 +244,7 @@ mod tests {
     fn invalid_register() {
         assert_eq!(
             parse_line("pop %").unwrap_err(),
-            RasError::Parse(ParseError::InvalidRegister("".into()))
+            RasError::Parse(ParseError::UnexpectedEof)
         );
         assert_eq!(
             parse_line("pop %rex").unwrap_err(),

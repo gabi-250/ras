@@ -5,7 +5,7 @@ pub(crate) mod register;
 use crate::repr::operand::{OperandKind, OperandRepr};
 
 pub use immediate::{Immediate, ImmediateSize};
-pub use memory::{Memory, MemoryRel, Scale};
+pub use memory::{Memory, MemoryRel, Moffs, Scale};
 pub use register::{Register, RegisterNum};
 
 #[derive(Debug, Clone, PartialEq)]

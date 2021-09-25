@@ -6,6 +6,7 @@ use std::cmp::PartialEq;
 use std::error::Error;
 use std::fmt::{self, Display, Formatter};
 use std::io;
+use std::num::ParseIntError;
 
 #[derive(Debug)]
 pub enum RasError {
@@ -15,6 +16,7 @@ pub enum RasError {
     MissingInstructionRepr(Mnemonic),
     Object(write::Error),
     Io(io::Error),
+    ParseInt(ParseIntError),
     Parse(ParseError),
     SignExtend(String),
 }
@@ -25,6 +27,7 @@ impl Display for ParseError {
             ParseError::InvalidMnemonic(m) => write!(f, "unknown mnemonic: {}", m),
             ParseError::InvalidRegister(r) => write!(f, "invalid register: {}", r),
             ParseError::InvalidImmediate(imm) => write!(f, "invalid immediate: {}", imm),
+            ParseError::InvalidMemoryOffset(moffs) => write!(f, "invalid memory offset: {}", moffs),
             ParseError::UnexpectedEof => write!(f, "unexpected end of input"),
             ParseError::UnexpectedChar(c) => write!(f, "unexpected char {}", c),
         }
@@ -37,6 +40,7 @@ impl Error for ParseError {}
 pub enum ParseError {
     InvalidMnemonic(String),
     InvalidImmediate(String),
+    InvalidMemoryOffset(String),
     InvalidRegister(String),
     UnexpectedEof,
     // TODO
@@ -87,6 +91,7 @@ impl Display for RasError {
             }
             Object(err) => write!(f, "{}", err),
             Io(err) => write!(f, "{}", err),
+            ParseInt(err) => write!(f, "{}", err),
             Parse(err) => write!(f, "{}", err),
             SignExtend(err) => write!(f, "sign extend error: {}", err),
         }
@@ -104,5 +109,11 @@ impl From<write::Error> for RasError {
 impl From<io::Error> for RasError {
     fn from(err: io::Error) -> Self {
         Self::Io(err)
+    }
+}
+
+impl From<ParseIntError> for RasError {
+    fn from(err: ParseIntError) -> Self {
+        Self::ParseInt(err)
     }
 }
