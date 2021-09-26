@@ -12,7 +12,7 @@ use std::path::Path;
 
 lazy_static! {
     pub static ref INSTR_REPRS: HashMap<Mnemonic, Vec<InstructionRepr>> = {
-        let inst_map = fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join("../bin/map")).unwrap();
+        let inst_map = fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join("bin/map")).unwrap();
 
         let map: HashMap<String, Vec<InstructionRepr>> = bincode::deserialize(&inst_map).unwrap();
 

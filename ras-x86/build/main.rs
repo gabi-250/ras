@@ -17,7 +17,7 @@ use quote::quote;
 use ras_x86_repr::{InstructionRepr, Mode};
 
 const INST_CSV: &str = "./x86-csv/x86.csv";
-const INST_MAP: &str = "../bin/map";
+const INST_MAP: &str = "bin/map";
 
 fn main() -> ParseResult<()> {
     let inst_csv = Path::new(env!("CARGO_MANIFEST_DIR")).join(INST_CSV);

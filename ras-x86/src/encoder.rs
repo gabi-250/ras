@@ -258,17 +258,9 @@ impl Encoder {
             ..
         })) = reg_memory_op
         {
-            let (base, index, is_disp32) = match (base.is_some(), index.is_some(), scale) {
-                (true, _, _) => (base, index, false),
-                (false, true, Scale::Byte) => (index, base, false),
-                (false, false, _) => {
-                    // disp32 case
-                    (base, index, true)
-                }
-                _ => (base, index, false),
-            };
+            let no_index_or_base = base.is_none() && index.is_none();
 
-            let (modifier, displacement) = match (is_disp32, displacement) {
+            let (modifier, displacement) = match (no_index_or_base, displacement) {
                 // In GNU as, expressions with missing base and index registers with no
                 // displacement are the same as a 32-bit displacement of 0 (e.g. movb $0x2,(,2)
                 // is the same as movb $0x2, 0)
@@ -389,13 +381,11 @@ fn maybe_sib(
     scale: Scale,
     modifier: u8,
 ) -> Result<Option<u8>, RasError> {
-    let sib = match (base, index, modifier) {
+    let sib = match (base, index, dbg!(modifier)) {
         (Some(base), None, 0b00) if matches!(**base, RegisterNum::Rsp | RegisterNum::Rbp) => {
             Some(sib(scale as u8, SIB_INDEX_NONE, sib_base(*base)))
         }
-
-        (Some(base), None, modifier)
-            if (modifier == 0b01 || modifier == 0b10) && matches!(**base, RegisterNum::Rsp) =>
+        (Some(base), None, 0b01) | (Some(base), None, 0b10) if matches!(**base, RegisterNum::Rsp) =>
         {
             Some(sib(scale as u8, SIB_INDEX_NONE, sib_base(*base)))
         }
