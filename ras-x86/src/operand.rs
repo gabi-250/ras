@@ -77,6 +77,7 @@ impl Operand {
             | (Operand::Immediate(_), OperandKind::Imm) => true,
             (Operand::Memory(m), OperandKind::ModRmRegMem) if m.is_sib() => true,
             (Operand::Memory(m), OperandKind::Moffs) if m.is_moffs() => true,
+            (Operand::Memory(_), OperandKind::M) => true,
             // Be pessimistic and always use the largest (rel32) encoding for jump/call
             // instructions:
             (Operand::Memory(m), OperandKind::Rel32) if m.is_relative() => true,

@@ -23,7 +23,6 @@ fn compare_text_section_with_gas() {
         let mut asm = Assembler::new_long(parse_asm(&asm_src).unwrap(), &[]);
         asm.assemble().unwrap();
         asm.write_obj(&mut out).unwrap();
-
         let status = Command::new("as")
             .args(["-o", RAS_TEST_OBJ, path.to_str().unwrap()])
             .stdout(Stdio::null())
@@ -33,15 +32,12 @@ fn compare_text_section_with_gas() {
                 "failed to assemble {} with as",
                 path.to_str().unwrap()
             ));
-
         if !status.success() {
             panic!("failed to assemble {} with as", path.to_str().unwrap());
         }
-
         let expected = fs::read(RAS_TEST_OBJ).unwrap();
         let expected_text = read_text_section(&expected);
         let actual_text = read_text_section(&out);
-
         assert_eq!(
             actual_text, expected_text,
             "incorrect .text section for \"{}\"",
@@ -52,7 +48,6 @@ fn compare_text_section_with_gas() {
 
 fn read_text_section(input: &[u8]) -> &[u8] {
     let elf = Elf::parse(input).expect("failed to parse ELF file");
-
     let text_section = elf
         .section_headers
         .iter()
@@ -63,6 +58,5 @@ fn read_text_section(input: &[u8]) -> &[u8] {
                 == ".text"
         })
         .expect("object file does not have a .text section");
-
     &input[text_section.file_range().unwrap()]
 }

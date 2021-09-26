@@ -112,7 +112,7 @@ impl<'a> OperandParser<'a> {
         if self.pos < self.input.len() && self.input[self.pos] == b'(' {
             self.parse_sib(
                 offset
-                    .map(|v| String::from_utf8_lossy(v).parse::<u64>())
+                    .map(|v| String::from_utf8_lossy(v).parse::<i64>())
                     .transpose()?,
             )
         } else {
@@ -124,7 +124,7 @@ impl<'a> OperandParser<'a> {
         }
     }
 
-    fn parse_sib(&mut self, displacement: Option<u64>) -> RasResult<Memory> {
+    fn parse_sib(&mut self, displacement: Option<i64>) -> RasResult<Memory> {
         self.advance_or_eof()?;
         if self.pos >= self.input.len() {
             return Err(ParseError::UnexpectedEof.into());

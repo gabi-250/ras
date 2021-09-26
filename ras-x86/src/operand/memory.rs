@@ -14,8 +14,9 @@ pub enum Memory {
         index: Option<Register>,
         /// The multiplier (one of 1, 2, 4, or 8).
         scale: Scale,
-        /// An 8-, 16-, or 32-bit value.
-        displacement: Option<u64>,
+        /// Usually an 8-, 16-, or 32-bit value, although some rare instructions take a 64-bit
+        /// displacement.
+        displacement: Option<i64>,
     },
     Relative(MemoryRel),
     /// Only valid for MOV instructions
@@ -49,7 +50,7 @@ impl Memory {
         base: Option<Register>,
         index: Option<Register>,
         scale: Scale,
-        displacement: Option<u64>,
+        displacement: Option<i64>,
     ) -> Self {
         Self::Sib {
             segment_override,

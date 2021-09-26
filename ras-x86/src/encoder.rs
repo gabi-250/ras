@@ -72,7 +72,6 @@ impl Encoder {
                 }
             }
         }
-
         // If there are still some unresolved symbols, return an error if any of them are not
         // marked as external:
         let undefined_symbols: Vec<String> = self
@@ -90,7 +89,6 @@ impl Encoder {
         if !undefined_symbols.is_empty() {
             return Err(RasError::UndefinedSymbols(undefined_symbols));
         }
-
         Ok(())
     }
 
@@ -104,7 +102,6 @@ impl Encoder {
                 _ => unimplemented!("encoding: {:?}", code),
             }
         }
-
         Ok(())
     }
 
@@ -118,7 +115,6 @@ impl Encoder {
             Operand::Memory(_) => (None, Some(operand), None),
             Operand::Immediate(imm) => (None, None, Some(imm)),
         };
-
         for code in &inst_repr.encoding.bytecode {
             self.handle_opcode(
                 code,
@@ -129,7 +125,6 @@ impl Encoder {
                 operand.size(),
             )?;
         }
-
         Ok(())
     }
 
@@ -146,7 +141,6 @@ impl Encoder {
         } else {
             std::cmp::max(op1.size(), op2.size())
         };
-
         let (reg_op, reg_memory_op, imm_op) = match (op2, op1) {
             (Operand::Register(reg), Operand::Memory(_)) => (Some(reg), Some(op1), None),
             (Operand::Register(reg), Operand::Register(_)) => (Some(reg), Some(op1), None),
@@ -160,11 +154,9 @@ impl Encoder {
                 "instruction repr has ModRM byte but none of the operands are register/memory"
             ),
         };
-
         for code in &inst_repr.encoding.bytecode {
             self.handle_opcode(code, inst_repr, reg_op, reg_memory_op, imm_op, op_size)?;
         }
-
         Ok(())
     }
 
@@ -258,15 +250,13 @@ impl Encoder {
             ..
         })) = reg_memory_op
         {
-            let no_index_or_base = base.is_none() && index.is_none();
-
-            let (modifier, displacement) = match (no_index_or_base, displacement) {
+            let (modifier, displacement) = match (base.is_none(), displacement) {
                 // In GNU as, expressions with missing base and index registers with no
                 // displacement are the same as a 32-bit displacement of 0 (e.g. movb $0x2,(,2)
                 // is the same as movb $0x2, 0)
-                (true, v) => (0b00, Some(v.unwrap_or(0).to_le_bytes().to_vec())),
+                (true, v) => (0b00, Some((v.unwrap_or(0) as i32).to_le_bytes().to_vec())),
                 // disp8
-                (false, Some(v)) if v.next_power_of_two() < 256 => {
+                (false, Some(v)) if *v < i8::MAX as i64 => {
                     (0b01, Some((*v as u8).to_le_bytes().to_vec()))
                 }
                 // disp32
@@ -281,7 +271,6 @@ impl Encoder {
                 base.map(|base| *base as u8).unwrap_or(0)
             };
             self.out.push(modrm(modifier, modrm_reg, rm));
-
             if let Some(sib) = sib {
                 self.out.push(sib);
             }
@@ -292,7 +281,6 @@ impl Encoder {
         } else {
             self.out.push(modrm(0b11, modrm_reg, rm))
         }
-
         Ok(())
     }
 
@@ -381,15 +369,17 @@ fn maybe_sib(
     scale: Scale,
     modifier: u8,
 ) -> Result<Option<u8>, RasError> {
-    let sib = match (base, index, dbg!(modifier)) {
+    let sib = match (base, index, modifier) {
         (Some(base), None, 0b00) if matches!(**base, RegisterNum::Rsp | RegisterNum::Rbp) => {
             Some(sib(scale as u8, SIB_INDEX_NONE, sib_base(*base)))
         }
-        (Some(base), None, 0b01) | (Some(base), None, 0b10) if matches!(**base, RegisterNum::Rsp) =>
+        (Some(base), None, 0b01) | (Some(base), None, 0b10)
+            if matches!(**base, RegisterNum::Rsp) =>
         {
             Some(sib(scale as u8, SIB_INDEX_NONE, sib_base(*base)))
         }
         (Some(_), None, _) => None,
+        (None, Some(index), _) if modifier == 0b00 => Some(sib(scale as u8, **index as u8, 0b101)),
         (Some(base), Some(index), _) => Some(sib(scale as u8, **index as u8, sib_base(*base))),
         _ => return Err(RasError::Encoding("invalid SIB expression".into())),
     };

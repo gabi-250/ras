@@ -51,7 +51,7 @@ macro_rules! sib {
             let _seg = Some(*$seg);
         )*
 
-        let _disp: Option<u64> = None;
+        let _disp: Option<i64> = None;
         $(
             let _disp = Some($disp);
         )*
