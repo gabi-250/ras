@@ -13,9 +13,7 @@ use std::path::Path;
 lazy_static! {
     pub static ref INSTR_REPRS: HashMap<Mnemonic, Vec<InstructionRepr>> = {
         let inst_map = fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join("bin/map")).unwrap();
-
         let map: HashMap<String, Vec<InstructionRepr>> = bincode::deserialize(&inst_map).unwrap();
-
         map.into_iter()
             .map(|(mnemonic, repr)| (Mnemonic::from_str(&mnemonic).unwrap(), repr))
             .collect()
@@ -31,7 +29,6 @@ pub struct Instruction {
 impl Instruction {
     pub fn new(mnemonic: Mnemonic, operands: Vec<Operand>) -> Self {
         assert!(operands.len() <= 4);
-
         Self { mnemonic, operands }
     }
 
@@ -50,7 +47,6 @@ impl Instruction {
             .first()
             .ok_or(RasError::MissingInstructionRepr(self.mnemonic))?;
         enc.encode(shortest_repr, &self.operands)?;
-
         Ok(())
     }
 
@@ -59,7 +55,6 @@ impl Instruction {
         if self.operands.len() != repr.operands.len() {
             return false;
         }
-
         self.operands
             .iter()
             .zip(repr.operands.iter())

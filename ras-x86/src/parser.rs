@@ -84,7 +84,7 @@ impl<'a> OperandParser<'a> {
     fn parse_register(&mut self) -> RasResult<Register> {
         self.advance_or_eof()?;
         let start = self.pos;
-        self.skip_while_alnum();
+        self.skip_while_alpha();
         Register::try_from(&self.input[start..self.pos]).map_err(RasError::from)
     }
 
@@ -105,11 +105,8 @@ impl<'a> OperandParser<'a> {
             None
         };
 
-        if self.pos == self.input.len() && self.input[self.pos] == b'(' {
-            return Err(ParseError::UnexpectedEof.into());
-        }
-
-        if self.pos < self.input.len() && self.input[self.pos] == b'(' {
+        if self.input[self.pos] == b'(' {
+            self.advance_or_eof()?;
             self.parse_sib(
                 offset
                     .map(|v| String::from_utf8_lossy(v).parse::<i64>())
@@ -125,44 +122,67 @@ impl<'a> OperandParser<'a> {
     }
 
     fn parse_sib(&mut self, displacement: Option<i64>) -> RasResult<Memory> {
-        self.advance_or_eof()?;
         if self.pos >= self.input.len() {
             return Err(ParseError::UnexpectedEof.into());
         }
+        self.skip_whitespace();
+        let mut base = self.maybe_parse_sib_register()?;
+        let has_index_comma = self.consume_char(b',').is_ok();
+        self.skip_whitespace();
+        if self.input[self.pos] == b')' {
+            return Ok(Memory::sib(None, base, None, Scale::Byte, None));
+        }
 
-        let base = self.maybe_parse_sib_register()?;
-        let index = self.maybe_parse_sib_register()?;
-        let scale = match self.input[self.pos] {
+        // missing comma
+        if !has_index_comma {
+            return Err(ParseError::UnexpectedChar(self.input[self.pos].into()).into());
+        }
+        let (mut index, has_scale_comma) = if self.input[self.pos] == b'%' {
+            let index = self.maybe_parse_sib_register()?;
+            let has_scale_comma = self.consume_char(b',').is_ok();
+            self.skip_whitespace();
+            (index, has_scale_comma)
+        } else {
+            (None, has_index_comma)
+        };
+        if index.is_none() {
+            std::mem::swap(&mut base, &mut index);
+        }
+        if self.input[self.pos] == b')' {
+            return Ok(Memory::sib(None, base, index, Scale::Byte, None));
+        }
+
+        let maybe_scale = self.input[self.pos];
+        let scale = match maybe_scale {
             b')' => {
                 self.pos += 1;
                 return Ok(Memory::sib(None, base, index, Scale::Byte, displacement));
+            }
+            b'1' | b'2' | b'4' | b'8' if !has_scale_comma => {
+                return Err(ParseError::UnexpectedChar(maybe_scale.into()).into())
             }
             b'1' => Scale::Byte,
             b'2' => Scale::Word,
             b'4' => Scale::Double,
             b'8' => Scale::Quad,
-            c => return Err(ParseError::UnexpectedChar(c.into()).into()),
+            _ => return Err(ParseError::UnexpectedChar(maybe_scale.into()).into()),
         };
         self.advance_or_eof()?;
-        self.try_consume_char(b')')?;
+        self.consume_char(b')')?;
 
         Ok(Memory::sib(None, base, index, scale, displacement))
     }
 
     fn maybe_parse_sib_register(&mut self) -> RasResult<Option<Register>> {
         let reg = match self.input[self.pos] {
-            b'%' => {
-                let reg = Some(self.parse_register()?);
-                self.try_consume_char(b',')?;
-                reg
-            }
-            b',' => {
-                self.advance_or_eof()?;
-                None
-            }
+            b'%' => Some(self.parse_register()?),
+            b',' => None,
             c => return Err(ParseError::UnexpectedChar(c.into()).into()),
         };
         self.skip_whitespace();
+        if self.pos >= self.input.len() {
+            return Err(ParseError::UnexpectedEof.into());
+        }
         Ok(reg)
     }
 
@@ -174,7 +194,7 @@ impl<'a> OperandParser<'a> {
         Ok(())
     }
 
-    fn try_consume_char(&mut self, b: u8) -> RasResult<()> {
+    fn consume_char(&mut self, b: u8) -> RasResult<()> {
         if self.input[self.pos] != b {
             return Err(ParseError::UnexpectedChar(self.input[self.pos].into()).into());
         }
@@ -182,7 +202,7 @@ impl<'a> OperandParser<'a> {
         Ok(())
     }
 
-    fn skip_while_alnum(&mut self) {
+    fn skip_while_alpha(&mut self) {
         while self.pos < self.input.len() && self.input[self.pos].is_ascii_alphabetic() {
             self.pos += 1;
         }

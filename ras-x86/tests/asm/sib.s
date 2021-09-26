@@ -8,11 +8,12 @@ add 2(%rcx,%rbx,1), %rcx
 mov 2(%rcx,%rbx,1), %rcx
 mov %rcx, 2(%rcx,%rbx,1)
 lea 2(%rcx,%rbx,1), %rcx
-# TODO: extend parser to support these
-#lea (%rcx, %rax), %rcx
-#lea (%rcx), %rcx
-#lea (  , %rax), %rcx
-#lea (, %rax,), %rcx
-#lea (%rax, 1), %rcx
-#lea (, %rax, 1), %rcx
-#add %rax, 2(,%rbx,8)
+add %rcx, (%rcx, %rax)
+add %rax, 2(,%rbx,8)
+add %rcx, (, %rax, 1)
+add %rcx, (, %rax,)
+add %rcx, (  , %rax)
+# TODO fix encoding errors:
+#add (%rcx, %rax), %rcx
+#add (%rcx), %rcx
+#add %rcx, (%rax, 1)
