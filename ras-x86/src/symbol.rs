@@ -3,6 +3,7 @@ pub type InstructionPointer = u64;
 
 #[derive(Debug, Clone)]
 pub struct Symbol {
+    #[allow(unused)]
     pub(crate) ty: SymbolType,
     pub(crate) offset: Option<InstructionPointer>,
     pub(crate) attrs: u8,
