@@ -1,7 +1,7 @@
 use std::convert::TryFrom;
 use std::ops::Deref;
 
-use crate::error::ParseError;
+use crate::error::{ParseError, ParseErrorKind};
 
 macro_rules! decl_reg {
     ($name64:ident, $name32:ident, $name16:ident $(, $name8lo:ident $(, $name8hi:ident)?)? - $reg_name:ident) => {
@@ -108,9 +108,9 @@ impl TryFrom<&[u8]> for Register {
             b"esp" => *ESP,
             b"sp" => *SP,
             s => {
-                return Err(ParseError::InvalidRegister(
+                return Err(ParseError::new(ParseErrorKind::InvalidRegister(
                     String::from_utf8_lossy(s).into(),
-                ))
+                )))
             }
         };
 

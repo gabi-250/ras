@@ -10,12 +10,13 @@ pub mod parser;
 pub mod symbol;
 
 pub use crate::operand::register::reg_defs::*;
-pub use error::RasError;
+pub use error::{ParseError, RasError};
 pub use mnemonic::Mnemonic;
 pub use ras_x86_repr as repr;
 pub use repr::Mode;
 
 pub type RasResult<T> = Result<T, RasError>;
+pub type ParseResult<T> = Result<T, ParseError>;
 
 #[cfg(test)]
 mod tests {

@@ -1,32 +1,50 @@
 use crate::assembler::Item;
-use crate::error::ParseError;
+use crate::error::{ParseError, ParseErrorKind, ParseErrorList};
 use crate::instruction::Instruction;
 use crate::operand::{Immediate, Memory, Moffs, Operand, Register, Scale};
 use crate::Mnemonic;
-use crate::{RasError, RasResult};
+use crate::ParseResult;
 
 use std::convert::TryFrom;
 use std::str::FromStr;
 
 /// Parse assembly code written in AT&T syntax.
-pub fn parse_asm(input: &str) -> RasResult<Vec<Item>> {
-    input
-        .split('\n')
-        .filter(|line| !line.is_empty() && !line.starts_with('#'))
-        .map(|line| line.trim())
-        .map(parse_line)
-        .collect()
-}
+pub fn parse_asm(input: &str) -> Result<Vec<Item>, ParseErrorList> {
+    let mut errors = vec![];
+    let mut items = vec![];
 
-fn parse_line(input: &str) -> RasResult<Item> {
-    if let Some(label) = input.strip_suffix(':') {
-        Ok(Item::Label(label.into()))
+    for (line, input) in input.split('\n').enumerate() {
+        let input = input.trim();
+        if input.is_empty() || input.starts_with('#') {
+            continue;
+        }
+
+        match parse_line(input).map_err(|err| (line, err)) {
+            Ok(item) => {
+                if errors.is_empty() {
+                    items.push(item)
+                }
+            }
+            Err(e) => errors.push(e),
+        }
+    }
+
+    if errors.is_empty() {
+        Ok(items)
     } else {
-        parse_inst(input)
+        Err(errors.into())
     }
 }
 
-fn parse_inst(input: &str) -> RasResult<Item> {
+fn parse_line(input: &str) -> ParseResult<Item> {
+    if let Some(label) = input.strip_suffix(':') {
+        Ok(Item::Label(label.into()))
+    } else {
+        parse_instruction(input)
+    }
+}
+
+fn parse_instruction(input: &str) -> ParseResult<Item> {
     let (mnemonic, operands) = match input.split_once(' ') {
         Some((mnemonic, operands)) => (
             Mnemonic::from_str(mnemonic)?,
@@ -52,7 +70,7 @@ impl<'a> OperandParser<'a> {
         }
     }
 
-    pub fn parse(mut self) -> RasResult<Vec<Operand>> {
+    pub fn parse(mut self) -> ParseResult<Vec<Operand>> {
         let mut operands = vec![];
         loop {
             let operand = self.parse_single_operand()?;
@@ -69,33 +87,39 @@ impl<'a> OperandParser<'a> {
         Ok(operands)
     }
 
-    fn parse_single_operand(&mut self) -> RasResult<Operand> {
+    fn parse_single_operand(&mut self) -> ParseResult<Operand> {
         if self.pos >= self.input.len() {
-            return Err(ParseError::UnexpectedEof.into());
+            return Err(ParseError::with_context(
+                ParseErrorKind::UnexpectedEof,
+                "missing operand",
+            ));
         }
         match self.input[self.pos] {
             b'%' => self.parse_register().map(Operand::Register),
             b'$' => self.parse_immediate().map(Operand::Immediate),
             b'0'..=b'9' | b'(' => self.parse_memory().map(Operand::Memory),
-            c => Err(ParseError::UnexpectedChar(c.into()).into()),
+            c => Err(ParseError::with_context(
+                ParseErrorKind::UnexpectedChar(c.into()),
+                "invalid operand",
+            )),
         }
     }
 
-    fn parse_register(&mut self) -> RasResult<Register> {
+    fn parse_register(&mut self) -> ParseResult<Register> {
         self.advance_or_eof()?;
         let start = self.pos;
         self.skip_while_alpha();
-        Register::try_from(&self.input[start..self.pos]).map_err(RasError::from)
+        Register::try_from(&self.input[start..self.pos])
     }
 
-    fn parse_immediate(&mut self) -> RasResult<Immediate> {
+    fn parse_immediate(&mut self) -> ParseResult<Immediate> {
         self.advance_or_eof()?;
         let start = self.pos;
         self.skip_while_num();
-        Immediate::try_from(&self.input[start..self.pos]).map_err(RasError::from)
+        Immediate::try_from(&self.input[start..self.pos])
     }
 
-    fn parse_memory(&mut self) -> RasResult<Memory> {
+    fn parse_memory(&mut self) -> ParseResult<Memory> {
         let start = self.pos;
         self.skip_while_num();
 
@@ -121,21 +145,33 @@ impl<'a> OperandParser<'a> {
         }
     }
 
-    fn parse_sib(&mut self, displacement: Option<i64>) -> RasResult<Memory> {
+    fn parse_sib(&mut self, displacement: Option<i64>) -> ParseResult<Memory> {
         if self.pos >= self.input.len() {
-            return Err(ParseError::UnexpectedEof.into());
+            return Err(ParseError::with_context(
+                ParseErrorKind::UnexpectedEof,
+                "failed to parse SIB expressions",
+            ));
         }
         self.skip_whitespace();
         let mut base = self.maybe_parse_sib_register()?;
         let has_index_comma = self.consume_char(b',').is_ok();
         self.skip_whitespace();
+        if self.pos >= self.input.len() {
+            return Err(ParseError::with_context(
+                ParseErrorKind::UnexpectedEof,
+                "expected closing bracket for SIB expression",
+            ));
+        }
         if self.input[self.pos] == b')' {
             return Ok(Memory::sib(None, base, None, Scale::Byte, None));
         }
 
         // missing comma
         if !has_index_comma {
-            return Err(ParseError::UnexpectedChar(self.input[self.pos].into()).into());
+            return Err(ParseError::with_context(
+                ParseErrorKind::UnexpectedChar(self.input[self.pos].into()),
+                "missing comma before index register",
+            ));
         }
         let (mut index, has_scale_comma) = if self.input[self.pos] == b'%' {
             let index = self.maybe_parse_sib_register()?;
@@ -159,13 +195,21 @@ impl<'a> OperandParser<'a> {
                 return Ok(Memory::sib(None, base, index, Scale::Byte, displacement));
             }
             b'1' | b'2' | b'4' | b'8' if !has_scale_comma => {
-                return Err(ParseError::UnexpectedChar(maybe_scale.into()).into())
+                return Err(ParseError::with_context(
+                    ParseErrorKind::UnexpectedChar(maybe_scale.into()),
+                    "missing comma before scale",
+                ));
             }
             b'1' => Scale::Byte,
             b'2' => Scale::Word,
             b'4' => Scale::Double,
             b'8' => Scale::Quad,
-            _ => return Err(ParseError::UnexpectedChar(maybe_scale.into()).into()),
+            _ => {
+                return Err(ParseError::with_context(
+                    ParseErrorKind::UnexpectedChar(maybe_scale.into()),
+                    "invalid scale",
+                ))
+            }
         };
         self.advance_or_eof()?;
         self.consume_char(b')')?;
@@ -173,30 +217,41 @@ impl<'a> OperandParser<'a> {
         Ok(Memory::sib(None, base, index, scale, displacement))
     }
 
-    fn maybe_parse_sib_register(&mut self) -> RasResult<Option<Register>> {
+    fn maybe_parse_sib_register(&mut self) -> ParseResult<Option<Register>> {
         let reg = match self.input[self.pos] {
             b'%' => Some(self.parse_register()?),
             b',' => None,
-            c => return Err(ParseError::UnexpectedChar(c.into()).into()),
+            c => {
+                return Err(ParseError::with_context(
+                    ParseErrorKind::UnexpectedChar(c.into()),
+                    "expected register",
+                ))
+            }
         };
         self.skip_whitespace();
         if self.pos >= self.input.len() {
-            return Err(ParseError::UnexpectedEof.into());
+            return Err(ParseError::with_context(
+                ParseErrorKind::UnexpectedEof,
+                "expected register",
+            ));
         }
         Ok(reg)
     }
 
-    fn advance_or_eof(&mut self) -> RasResult<()> {
+    fn advance_or_eof(&mut self) -> ParseResult<()> {
         self.pos += 1;
         if self.pos >= self.input.len() {
-            return Err(ParseError::UnexpectedEof.into());
+            return Err(ParseError::new(ParseErrorKind::UnexpectedEof));
         }
         Ok(())
     }
 
-    fn consume_char(&mut self, b: u8) -> RasResult<()> {
+    fn consume_char(&mut self, b: u8) -> ParseResult<()> {
         if self.input[self.pos] != b {
-            return Err(ParseError::UnexpectedChar(self.input[self.pos].into()).into());
+            return Err(ParseError::with_context(
+                ParseErrorKind::UnexpectedChar(self.input[self.pos].into()),
+                format!("expected {}", b as char),
+            ));
         }
         self.pos += 1;
         Ok(())
@@ -239,7 +294,7 @@ impl<'a> OperandParser<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{i, imm16, imm32, imm8, reg, RasError, RAX, RCX};
+    use crate::{i, imm16, imm32, imm8, reg, RAX, RCX};
 
     #[test]
     fn no_operands() {
@@ -263,24 +318,24 @@ mod tests {
     #[test]
     fn invalid_register() {
         assert_eq!(
-            parse_line("pop %").unwrap_err(),
-            RasError::Parse(ParseError::UnexpectedEof)
+            parse_line("pop %").unwrap_err().kind(),
+            &ParseErrorKind::UnexpectedEof
         );
         assert_eq!(
-            parse_line("pop %rex").unwrap_err(),
-            RasError::Parse(ParseError::InvalidRegister("rex".into()))
+            parse_line("pop %rex").unwrap_err().kind(),
+            &ParseErrorKind::InvalidRegister("rex".into())
         );
     }
 
     #[test]
     fn invalid_mnemonic() {
         assert_eq!(
-            parse_line("").unwrap_err(),
-            RasError::Parse(ParseError::InvalidMnemonic("".into()))
+            parse_line("").unwrap_err().kind(),
+            &ParseErrorKind::InvalidMnemonic("".into())
         );
         assert_eq!(
-            parse_line("plop").unwrap_err(),
-            RasError::Parse(ParseError::InvalidMnemonic("plop".into()))
+            parse_line("plop").unwrap_err().kind(),
+            &ParseErrorKind::InvalidMnemonic("plop".into())
         );
     }
 

@@ -83,7 +83,7 @@ fn generate_mnemonic_enum(mnemonics: HashSet<String>) {
         use std::hash::Hash;
         use std::str::FromStr;
 
-        use crate::error::ParseError;
+        use crate::error::{ParseError, ParseErrorKind};
 
         #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Hash, Serialize, Deserialize)]
         pub enum Mnemonic {
@@ -97,7 +97,7 @@ fn generate_mnemonic_enum(mnemonics: HashSet<String>) {
                 let upper = s.to_ascii_uppercase();
                 match upper.as_str() {
                     #( #mnemonics => Ok(Mnemonic::#variants), )*
-                    _ => Err(ParseError::InvalidMnemonic(s.to_string()))
+                    _ => Err(ParseError::new(ParseErrorKind::InvalidMnemonic(s.to_string())))
                 }
             }
         }

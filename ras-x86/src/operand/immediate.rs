@@ -1,4 +1,4 @@
-use crate::error::ParseError;
+use crate::error::{ParseError, ParseErrorKind};
 use crate::{RasError, RasResult};
 
 use std::convert::TryFrom;
@@ -60,7 +60,9 @@ impl TryFrom<&[u8]> for Immediate {
         } else if let Ok(imm) = imm.parse::<i32>() {
             Ok(Immediate::Imm32(imm))
         } else {
-            Err(ParseError::InvalidImmediate(imm.into()))
+            Err(ParseError::new(ParseErrorKind::InvalidImmediate(
+                imm.into(),
+            )))
         }
     }
 }

@@ -1,4 +1,4 @@
-use crate::error::ParseError;
+use crate::error::{ParseError, ParseErrorKind};
 use crate::operand::{Immediate, Register};
 use crate::symbol::SymbolId;
 use std::convert::TryFrom;
@@ -116,7 +116,9 @@ impl TryFrom<&[u8]> for Moffs {
         } else if let Ok(moffs) = moffs.parse::<u64>() {
             Ok(Moffs::Moffs64(moffs))
         } else {
-            Err(ParseError::InvalidMemoryOffset(moffs.into()))
+            Err(ParseError::new(ParseErrorKind::InvalidMemoryOffset(
+                moffs.into(),
+            )))
         }
     }
 }
