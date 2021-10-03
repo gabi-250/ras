@@ -28,14 +28,13 @@ mod tests {
 
     macro_rules! assert_encoding_eq {
         ([$($expected:expr),*], $($inst:expr),*) => {{
-            let mut asm = Assembler::new_long(vec![$($inst),*], &[]);
-            asm.assemble().unwrap();
-            assert_eq!(&[$($expected),*], asm.dump_out());
+            let asm = Assembler::new_long().items(vec![$($inst),*]).dump_text().unwrap();
+            assert_eq!(&[$($expected),*], &asm[..]);
         }};
 
         ($expected_err:expr, $($inst:expr),*) => {{
-            let mut asm = Assembler::new_long(vec![$($inst),*], &[]);
-            assert_eq!($expected_err, asm.assemble().unwrap_err());
+            let asm = Assembler::new_long().items(vec![$($inst),*]).dump_text().unwrap_err();
+            assert_eq!($expected_err, asm);
         }};
     }
 
@@ -208,11 +207,13 @@ mod tests {
             "test_label".into(),
             Symbol::new_decl(SymbolType::Quad, SymbolAttribute::Global as u8),
         )];
-        let mut asm = Assembler::new_long(insts, syms);
-        asm.assemble().unwrap();
-
+        let asm = Assembler::new_long()
+            .items(insts)
+            .symbols(syms)
+            .dump_text()
+            .unwrap();
         // The jump target will be filled out by the linker:
-        assert_eq!(&[0xe9, 0, 0, 0, 0], asm.dump_out());
+        assert_eq!(&[0xe9, 0, 0, 0, 0], &asm[..]);
     }
 
     //   XXX

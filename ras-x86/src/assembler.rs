@@ -7,30 +7,58 @@ use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::io::Write;
 
-pub use crate::symbol::{InstructionPointer, Symbol, SymbolId, SymbolType};
+pub use crate::symbol::{Symbol, SymbolId, SymbolOffset, SymbolType};
 
 pub struct Assembler {
-    mode: Mode,
+    /// The instruction encoder.
     encoder: Encoder,
+    /// The instructions to encode.
     items: Vec<Item>,
+    /// The symbols used in the assembly program.
     sym_tab: HashMap<SymbolId, Symbol>,
 }
 
 impl Assembler {
-    pub fn new_long<I: Into<Item>>(items: Vec<I>, symbols: &[(SymbolId, Symbol)]) -> Self {
-        let mode = Mode::Long;
-
+    pub fn new_long() -> Self {
         Self {
-            mode,
-            encoder: Encoder::new(mode),
-            items: items.into_iter().map(Into::into).collect(),
-            sym_tab: symbols.iter().cloned().collect(),
+            encoder: Encoder::new(Mode::Long),
+            items: Default::default(),
+            sym_tab: Default::default(),
         }
     }
 
-    pub fn assemble(&mut self) -> RasResult<()> {
-        assert_eq!(self.mode, Mode::Long);
+    pub fn items<I: Into<Item>>(mut self, items: Vec<I>) -> Self {
+        self.items.extend(items.into_iter().map(Into::into));
+        self
+    }
 
+    pub fn symbols(mut self, symbols: &[(SymbolId, Symbol)]) -> Self {
+        self.sym_tab.extend(symbols.iter().cloned());
+        self
+    }
+
+    /// Get the assembled instructions.
+    pub fn dump_text(mut self) -> RasResult<Vec<u8>> {
+        self.assemble()?;
+        Ok(self.encoder.out)
+    }
+
+    /// Write an object file with the assembled instructions into the specified `writer`.
+    pub fn write_obj(mut self, mut writer: impl Write) -> RasResult<()> {
+        self.assemble()?;
+        let mut obj = ObjectWriter::new(self.encoder.mode);
+        // write the assembled instructions in the .text section of the object file
+        obj.append_text_section(&self.encoder.out);
+        // emit all the symbols
+        for (sym_id, sym) in &self.sym_tab {
+            obj.add_text_symbol(sym_id, sym);
+        }
+        // write the object file
+        writer.write_all(&obj.write()?)?;
+        Ok(())
+    }
+
+    fn assemble(&mut self) -> RasResult<()> {
         for item in &self.items {
             match item {
                 Item::Instruction(inst) => {
@@ -41,12 +69,12 @@ impl Assembler {
                         return Err(RasError::DuplicateLabel(label.to_string()));
                     }
                     Entry::Occupied(mut entry) => {
-                        entry.get_mut().offset = Some(self.encoder.instruction_pointer());
+                        entry.get_mut().offset = Some(self.encoder.current_offset());
                     }
                     Entry::Vacant(entry) => {
                         let sym = Symbol::new(
                             SymbolType::Quad,
-                            self.encoder.instruction_pointer(),
+                            self.encoder.current_offset(),
                             Default::default(),
                         );
                         entry.insert(sym);
@@ -54,26 +82,7 @@ impl Assembler {
                 },
             }
         }
-
         self.encoder.fixup_symbol_references(&self.sym_tab)?;
-
-        Ok(())
-    }
-
-    pub fn dump_out(&self) -> &[u8] {
-        &self.encoder.out
-    }
-
-    pub fn write_obj(&self, mut writer: impl Write) -> RasResult<()> {
-        let mut obj = ObjectWriter::new(self.mode);
-
-        obj.append_text_section(&self.encoder.out);
-
-        for (sym_id, sym) in &self.sym_tab {
-            obj.add_text_symbol(sym_id, sym);
-        }
-
-        writer.write_all(&obj.write()?)?;
         Ok(())
     }
 }

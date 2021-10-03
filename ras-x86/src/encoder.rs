@@ -1,4 +1,4 @@
-use crate::assembler::{InstructionPointer, SymbolId};
+use crate::assembler::{SymbolId, SymbolOffset};
 use crate::error::RasError;
 use crate::operand::{
     Immediate, ImmediateSize, Memory, MemoryRel, Operand, Register, RegisterNum, Scale,
@@ -11,15 +11,23 @@ use std::collections::HashMap;
 
 const SIB_INDEX_NONE: u8 = 0b100;
 
-pub(crate) struct Fixup {
-    pub offset: InstructionPointer,
-    pub size: u64,
+/// A range of bytes to patch: `[offset, offset + size)`
+struct Fixup {
+    offset: SymbolOffset,
+    size: u64,
 }
 
+/// The instruction encoder.
 #[derive(Default)]
 pub(crate) struct Encoder {
+    /// The output buffer where assembled instructions are written.
     pub out: Vec<u8>,
-    mode: Mode,
+    /// The `Mode` to assemble instructions in.
+    pub mode: Mode,
+    /// A mapping from symbol -> its occurrences in the code.
+    ///
+    /// Each non-extern symbol occurrence needs to be patched up with a concrete value by the
+    /// assembler.
     rel_jmp_fixups: HashMap<SymbolId, Vec<Fixup>>,
 }
 
@@ -32,7 +40,8 @@ impl Encoder {
         }
     }
 
-    pub(crate) fn instruction_pointer(&self) -> InstructionPointer {
+    /// Returns the current length of the text section.
+    pub(crate) fn current_offset(&self) -> SymbolOffset {
         self.out.len() as u64
     }
 
@@ -60,13 +69,13 @@ impl Encoder {
     ) -> Result<(), RasError> {
         for (symbol_id, symbol) in sym_tab {
             if let Some(offset) = symbol.offset {
+                // Patch any symbolic references (e.g. jmp label)
                 if let Some(fixups) = self.rel_jmp_fixups.remove(&symbol_id.to_string()) {
                     for fixup in fixups {
                         let start = fixup.offset as usize;
                         let end = (fixup.offset + fixup.size) as usize;
                         let offset =
                             (offset as i32 - (fixup.offset + fixup.size) as i32).to_le_bytes();
-
                         self.out.splice(start..end, offset.iter().cloned());
                     }
                 }
@@ -92,6 +101,7 @@ impl Encoder {
         Ok(())
     }
 
+    /// Encode an instruction with no operands.
     fn encode_no_operands(&mut self, inst_repr: &InstructionRepr) -> Result<(), RasError> {
         for code in &inst_repr.encoding.bytecode {
             match code {
@@ -105,6 +115,7 @@ impl Encoder {
         Ok(())
     }
 
+    /// Encode a single operand instruction.
     fn encode_1_operand(
         &mut self,
         inst_repr: &InstructionRepr,
@@ -128,6 +139,7 @@ impl Encoder {
         Ok(())
     }
 
+    /// Encode a two-operand instruction.
     fn encode_2_operands(
         &mut self,
         inst_repr: &InstructionRepr,
@@ -290,7 +302,7 @@ impl Encoder {
             MemoryRel::Label(symbol_id) => {
                 let size = (operand_repr.size() / 8) as usize;
                 let fixup = Fixup {
-                    offset: self.instruction_pointer(),
+                    offset: self.current_offset(),
                     size: size as u64,
                 };
                 // Store some zeroes...
@@ -349,6 +361,7 @@ impl Encoder {
         }
     }
 
+    /// Encode the register number the least significant 3 bits of the opcode byte.
     fn encode_reg_in_opcode(&mut self, opcode: u8, reg: &Register) {
         let opcode = opcode + (0b00000111 & **reg as u8);
         self.out.push(opcode);

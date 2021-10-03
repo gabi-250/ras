@@ -50,15 +50,13 @@ fn main() -> RasResult<()> {
         Item::Instruction(Instruction::new(Mnemonic::RET, vec![])),
     ];
 
-    let mut asm = Assembler::new_long(
-        insts,
-        &[(
+    Assembler::new_long()
+        .items(insts)
+        .symbols(&[(
             "test".into(),
             Symbol::new_decl(SymbolType::Quad, SymbolAttribute::Global as u8),
-        )],
-    );
-    asm.assemble()?;
-    asm.write_obj(File::create(out_file)?)?;
+        )])
+        .write_obj(File::create(out_file)?)?;
 
     Ok(())
 }

@@ -75,9 +75,6 @@ impl Display for RasError {
             }
             Object(err) => write!(f, "{}", err),
             Io(err) => write!(f, "{}", err),
-            //Parse { err, line } => {
-            //write!(f, "{}: {}", line, err)
-            //}
             SignExtend(err) => write!(f, "sign extend error: {}", err),
         }
     }

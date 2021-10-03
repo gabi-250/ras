@@ -23,9 +23,9 @@ fn main() -> RasResult<()> {
     let asm_src = fs::read_to_string(src_file).unwrap();
     match parse_asm(&asm_src) {
         Ok(asm_src) => {
-            let mut asm = Assembler::new_long(asm_src, &[]);
-            asm.assemble()?;
-            asm.write_obj(File::create(out_file)?)?;
+            Assembler::new_long()
+                .items(asm_src)
+                .write_obj(File::create(out_file)?)?;
         }
         Err(errors) => println!("{}", errors),
     }

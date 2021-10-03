@@ -20,9 +20,10 @@ fn compare_text_section_with_gas() {
         }
         let asm_src = fs::read_to_string(&path).unwrap();
         let mut out = vec![];
-        let mut asm = Assembler::new_long(parse_asm(&asm_src).unwrap(), &[]);
-        asm.assemble().unwrap();
-        asm.write_obj(&mut out).unwrap();
+        Assembler::new_long()
+            .items(parse_asm(&asm_src).unwrap())
+            .write_obj(&mut out)
+            .unwrap();
         let status = Command::new("as")
             .args(["-o", RAS_TEST_OBJ, path.to_str().unwrap()])
             .stdout(Stdio::null())

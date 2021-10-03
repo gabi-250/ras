@@ -1,11 +1,13 @@
 pub type SymbolId = String;
-pub type InstructionPointer = u64;
+pub type SymbolOffset = u64;
 
 #[derive(Debug, Clone)]
 pub struct Symbol {
     #[allow(unused)]
     pub(crate) ty: SymbolType,
-    pub(crate) offset: Option<InstructionPointer>,
+    /// The offset of this symbol in the text section.
+    pub(crate) offset: Option<SymbolOffset>,
+    /// The attributes of the symbol.
     pub(crate) attrs: u8,
 }
 
@@ -33,7 +35,7 @@ impl Symbol {
         }
     }
 
-    pub(crate) fn new(ty: SymbolType, offset: InstructionPointer, attrs: u8) -> Self {
+    pub(crate) fn new(ty: SymbolType, offset: SymbolOffset, attrs: u8) -> Self {
         Self {
             ty,
             offset: Some(offset),
@@ -41,7 +43,7 @@ impl Symbol {
         }
     }
 
-    pub fn offset(&self) -> &Option<InstructionPointer> {
+    pub fn offset(&self) -> &Option<SymbolOffset> {
         &self.offset
     }
 
