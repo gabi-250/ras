@@ -2,6 +2,8 @@
 
 An x86-64 assembler implemented in Rust.
 
+**This is work in progress, and known to be buggy and far from feature complete.**
+
 ## Example usage
 
 The [examples] directory of the [ras-x86] crate contains a couple of usage

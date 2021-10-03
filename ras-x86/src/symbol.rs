@@ -43,8 +43,8 @@ impl Symbol {
         }
     }
 
-    pub fn offset(&self) -> &Option<SymbolOffset> {
-        &self.offset
+    pub fn offset(&self) -> Option<&SymbolOffset> {
+        self.offset.as_ref()
     }
 
     pub fn is_defined(&self) -> bool {
