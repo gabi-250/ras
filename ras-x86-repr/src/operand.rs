@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
+/// The internal representation of x86 instruction operand.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct OperandRepr {
     pub kind: OperandKind,
@@ -17,11 +18,15 @@ impl OperandRepr {
     }
 }
 
+/// The type of the operand, as described in section `3.1.1.3 Instruction Column in the Opcode
+/// Summary Table` of the [Intel® 64 and IA-32 architectures software developer's manual volume 2].
+///
+/// [Intel® 64 and IA-32 architectures software developer's manual volume 2]: https://software.intel.com/content/www/us/en/develop/articles/intel-sdm.html
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub enum OperandKind {
     /// reg
     Reg,
-    /// XXX the size of the operand can be 32 if it is a register, or 16 if it's a memory operand
+    // XXX the size of the operand can be 32 if it is a register, or 16 if it's a memory operand
     R32M16,
     R64M16,
     /// ModRM:reg

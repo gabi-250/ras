@@ -1,3 +1,13 @@
+//! The internal representation of an x86 instruction.
+//!
+//! The [`InstructionRepr`](instruction/struct.InstructionRepr.html) is the most important
+//! structure in this crate. It has the following components:
+//! * an [`InstructionEncoding`](instruction/struct.InstructionEncoding.html), which specifies how the
+//!   instruction should be encoded
+//! * a list of [`OperandRepr`](operand/struct.OperandRepr.html)s
+//!   (the representation of its operands), and
+//! * the assembly [`Mode`](enum.Mode.html)s in which its encoding is possible
+
 pub mod instruction;
 pub mod operand;
 pub mod prefix;

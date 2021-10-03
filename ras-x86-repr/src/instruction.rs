@@ -9,18 +9,24 @@ use std::str::FromStr;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct InstructionRepr {
+    /// The recipe for instruction encoding.
     pub encoding: InstructionEncoding,
+    /// The representation of the operands.
     pub operands: Vec<OperandRepr>,
+    /// The assembly [`Mode`](enum.Mode.html)s in which this instruction's encoding is possible.
     pub modes: Vec<Mode>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct InstructionEncoding {
+    /// The bytecodes describing how the instruction's encoding.
     pub bytecode: Vec<EncodingBytecode>,
-    /// According to the "Intel 64 and IA-32 Architectures Software Developer's Manual": "Indicates
+    /// According to the [Intel® 64 and IA-32 architectures software developer's manual volume 2]: "Indicates
     /// the use of 66/F2/F3 prefixes (beyond those already part of the instructions opcode) are not
     /// allowed with the instruction. Such use will either cause an invalid-opcode exception (#UD)
     /// or result in the encoding for a different instruction."
+    ///
+    /// [Intel® 64 and IA-32 architectures software developer's manual volume 2]: https://software.intel.com/content/www/us/en/develop/articles/intel-sdm.html
     pub is_np: bool,
 }
 
@@ -96,6 +102,16 @@ impl InstructionEncoding {
     }
 }
 
+/// An instruction encoding bytecode.
+///
+/// Bytecodes are extracted from the `Opcode` column of the [x86-csv].
+///
+/// See Section "3.1.1.1 Opcode Column in the Instruction Summary Table (Instructions without VEX
+/// Prefix)" of the [Intel® 64 and IA-32 architectures software developer's manual volume 2] for
+/// more details.
+///
+/// [x86-csv]: https://github.com/GregoryComer/x86-csv/tree/c638bbbaa17f0c81abaa7e84a968335c985542fa
+/// [Intel® 64 and IA-32 architectures software developer's manual volume 2]: https://software.intel.com/content/www/us/en/develop/articles/intel-sdm.html
 #[derive(Serialize, Deserialize, Copy, Clone, Debug, PartialEq)]
 pub enum EncodingBytecode {
     Rex(RexPrefix),
