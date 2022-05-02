@@ -20,7 +20,7 @@ fn compare_text_section_with_gas() {
         }
         let asm_src = fs::read_to_string(&path).unwrap();
         let mut out = vec![];
-        Assembler::new_long()
+        Assembler::long_mode()
             .items(parse_asm(&asm_src).unwrap())
             .write_obj(&mut out)
             .unwrap();

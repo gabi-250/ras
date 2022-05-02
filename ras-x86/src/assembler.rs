@@ -19,7 +19,7 @@ pub struct Assembler {
 }
 
 impl Assembler {
-    pub fn new_long() -> Self {
+    pub fn long_mode() -> Self {
         Self {
             encoder: Encoder::new(Mode::Long),
             items: Default::default(),

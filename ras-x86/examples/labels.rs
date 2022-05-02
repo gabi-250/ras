@@ -50,7 +50,7 @@ fn main() -> RasResult<()> {
         Item::Instruction(Instruction::new(Mnemonic::RET, vec![])),
     ];
 
-    Assembler::new_long()
+    Assembler::long_mode()
         .items(insts)
         .symbols(&[(
             "test".into(),

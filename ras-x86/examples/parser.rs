@@ -23,7 +23,7 @@ fn main() -> RasResult<()> {
     let asm_src = fs::read_to_string(src_file).unwrap();
     match parse_asm(&asm_src) {
         Ok(asm_src) => {
-            Assembler::new_long()
+            Assembler::long_mode()
                 .items(asm_src)
                 .write_obj(File::create(out_file)?)?;
         }

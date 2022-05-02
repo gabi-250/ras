@@ -28,12 +28,12 @@ mod tests {
 
     macro_rules! assert_encoding_eq {
         ([$($expected:expr),*], $($inst:expr),*) => {{
-            let asm = Assembler::new_long().items(vec![$($inst),*]).dump_text().unwrap();
+            let asm = Assembler::long_mode().items(vec![$($inst),*]).dump_text().unwrap();
             assert_eq!(&[$($expected),*], &asm[..]);
         }};
 
         ($expected_err:expr, $($inst:expr),*) => {{
-            let asm = Assembler::new_long().items(vec![$($inst),*]).dump_text().unwrap_err();
+            let asm = Assembler::long_mode().items(vec![$($inst),*]).dump_text().unwrap_err();
             assert_eq!($expected_err, asm);
         }};
     }
@@ -207,7 +207,7 @@ mod tests {
             "test_label".into(),
             Symbol::new_decl(SymbolType::Quad, SymbolAttribute::Global as u8),
         )];
-        let asm = Assembler::new_long()
+        let asm = Assembler::long_mode()
             .items(insts)
             .symbols(syms)
             .dump_text()

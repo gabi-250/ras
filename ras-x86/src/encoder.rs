@@ -70,7 +70,7 @@ impl Encoder {
         for (symbol_id, symbol) in sym_tab {
             if let Some(offset) = symbol.offset {
                 // Patch any symbolic references (e.g. jmp label)
-                if let Some(fixups) = self.rel_jmp_fixups.remove(&symbol_id.to_string()) {
+                if let Some(fixups) = self.rel_jmp_fixups.remove(symbol_id) {
                     for fixup in fixups {
                         let start = fixup.offset as usize;
                         let end = (fixup.offset + fixup.size) as usize;

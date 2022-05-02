@@ -77,7 +77,7 @@ pub fn until<F>(is_end_char: F) -> impl Fn(&str) -> ParseResult<(&str, &str)>
 where
     F: Fn(char) -> bool,
 {
-    move |input| match input.chars().position(|c| is_end_char(c)) {
+    move |input| match input.chars().position(&is_end_char) {
         Some(i) => Ok((&input[..i], &input[i..])),
         None => Ok((input, "")),
     }
@@ -88,7 +88,7 @@ where
     F: Fn(char) -> bool,
 {
     move |input| {
-        let until_sep = until(|c| is_end_char(c));
+        let until_sep = until(&is_end_char);
         let (maybe_repr, rest) = until_sep(input)?;
         OperandRepr::from_str(maybe_repr).map(|repr| (repr, rest))
     }
