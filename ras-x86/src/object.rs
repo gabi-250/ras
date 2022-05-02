@@ -5,12 +5,12 @@ use object::{Architecture, BinaryFormat, SymbolFlags, SymbolKind, SymbolScope};
 use crate::symbol::Symbol;
 use crate::{Mode, RasResult};
 
-pub struct ObjectWriter {
-    obj: Object,
+pub struct ObjectWriter<'o> {
+    obj: Object<'o>,
     text_section_id: SectionId,
 }
 
-impl ObjectWriter {
+impl<'o> ObjectWriter<'o> {
     pub fn new(mode: Mode) -> Self {
         let mut obj = Object::new(BinaryFormat::Elf, Self::arch(mode), Endianness::Little);
         let text_section_id = obj.section_id(StandardSection::Text);
