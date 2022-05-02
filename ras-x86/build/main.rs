@@ -9,6 +9,7 @@ use opcode::parse_opcode_column;
 use parsers::ParseResult;
 
 use std::collections::{HashMap, HashSet};
+use std::process::Command;
 use std::fs::{self, File};
 use std::path::Path;
 
@@ -18,6 +19,7 @@ use ras_x86_repr::{InstructionRepr, Mode};
 
 const INST_CSV: &str = "./x86-csv/x86.csv";
 const INST_MAP: &str = "bin/map";
+const RUSTFMT_BIN: &str = "rustfmt";
 
 fn main() -> ParseResult<()> {
     let inst_csv = Path::new(env!("CARGO_MANIFEST_DIR")).join(INST_CSV);
@@ -104,7 +106,11 @@ fn generate_mnemonic_enum(mnemonics: HashSet<String>) {
     };
 
     let mnemonic_file = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/mnemonic.rs");
-    fs::write(mnemonic_file, content.to_string()).unwrap();
+    fs::write(&mnemonic_file, content.to_string()).unwrap();
+    Command::new(RUSTFMT_BIN)
+        .arg(mnemonic_file)
+        .spawn()
+        .expect("failed to run rustfmt");
 }
 
 pub fn is_valid_mode(mode_rec: &str) -> bool {
