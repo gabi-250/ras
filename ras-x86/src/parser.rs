@@ -1,7 +1,7 @@
 use crate::assembler::Item;
 use crate::error::{ParseError, ParseErrorKind, ParseErrorList};
 use crate::instruction::Instruction;
-use crate::operand::{Immediate, Memory, Moffs, Operand, Register, Scale};
+use crate::operand::{Immediate, Memory, MemoryRel, Moffs, Operand, Register, Scale};
 use crate::Mnemonic;
 use crate::ParseResult;
 
@@ -108,6 +108,9 @@ impl<'a> OperandParser<'a> {
             b'%' => self.parse_register().map(Operand::Register),
             b'$' => self.parse_immediate().map(Operand::Immediate),
             b'0'..=b'9' | b'(' => self.parse_memory().map(Operand::Memory),
+            // Symbol names begin with a letter or with one of '.', '_'.
+            // TODO: gas alllows quoted symbol names too
+            b'a'..=b'z' | b'A'..=b'Z' | b'.' | b'_' => self.parse_label().map(Operand::Memory),
             c => Err(ParseError::with_context(
                 ParseErrorKind::UnexpectedChar(c.into()),
                 "invalid operand",
@@ -127,6 +130,18 @@ impl<'a> OperandParser<'a> {
         let start = self.pos;
         self.skip_while_num();
         Immediate::try_from(&self.input[start..self.pos])
+    }
+
+    fn parse_label(&mut self) -> ParseResult<Memory> {
+        let start = self.pos;
+        // Skip over the first char from the name (fewer restrictions apply to the rest of the
+        // chars).
+        self.pos += 1;
+        let is_symbol_name =
+            |c: u8| c.is_ascii_alphanumeric() || c == b'.' || c == b'_' || c == b'$';
+        self.skip_while(is_symbol_name);
+        let symbol = String::from_utf8(self.input[start..self.pos].to_vec()).unwrap();
+        Ok(Memory::Relative(MemoryRel::Label(symbol)))
     }
 
     fn parse_memory(&mut self) -> ParseResult<Memory> {
@@ -271,6 +286,12 @@ impl<'a> OperandParser<'a> {
         }
         self.pos += 1;
         Ok(())
+    }
+
+    fn skip_while(&mut self, cond: impl Fn(u8) -> bool) {
+        while self.pos < self.input.len() && cond(self.input[self.pos]) {
+            self.pos += 1;
+        }
     }
 
     fn skip_while_alpha(&mut self) {

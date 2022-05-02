@@ -114,7 +114,7 @@ impl Display for ParseError {
             ParseErrorKind::UnexpectedChar(c) => write!(f, "found unexpected char '{}'", c),
             ParseErrorKind::ParseInt(err) => write!(f, "{}", err),
             ParseErrorKind::JunkAfterExpression(s) => {
-                write!(f, "found junk after expression {}", s)
+                write!(f, "found junk after expression: {:?}", s)
             }
         }
     }

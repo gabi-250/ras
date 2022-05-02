@@ -9,9 +9,9 @@ use opcode::parse_opcode_column;
 use parsers::ParseResult;
 
 use std::collections::{HashMap, HashSet};
-use std::process::Command;
 use std::fs::{self, File};
 use std::path::Path;
+use std::process::Command;
 
 use proc_macro2::TokenStream;
 use quote::quote;
