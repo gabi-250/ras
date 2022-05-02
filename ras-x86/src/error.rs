@@ -113,6 +113,9 @@ impl Display for ParseError {
             ParseErrorKind::UnexpectedEof => write!(f, "unexpected end of input"),
             ParseErrorKind::UnexpectedChar(c) => write!(f, "found unexpected char '{}'", c),
             ParseErrorKind::ParseInt(err) => write!(f, "{}", err),
+            ParseErrorKind::JunkAfterExpression(s) => {
+                write!(f, "found junk after expression {}", s)
+            }
         }
     }
 }
@@ -167,4 +170,5 @@ pub enum ParseErrorKind {
     UnexpectedEof,
     UnexpectedChar(char),
     ParseInt(ParseIntError),
+    JunkAfterExpression(String),
 }

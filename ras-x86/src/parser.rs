@@ -81,6 +81,16 @@ impl<'a> OperandParser<'a> {
             }
         }
 
+        // Expect to reach the end of input after parsing the operands
+        if self.pos != self.input.len() {
+            return Err(ParseError::with_context(
+                ParseErrorKind::JunkAfterExpression(
+                    String::from_utf8(self.input[self.pos..].to_vec()).unwrap(),
+                ),
+                "invalid operand",
+            ));
+        }
+
         // AT&T syntax reverses the order of the operands:
         operands.reverse();
 
@@ -153,7 +163,12 @@ impl<'a> OperandParser<'a> {
             ));
         }
         self.skip_whitespace();
-        let mut base = self.maybe_parse_sib_register()?;
+        let base = self.maybe_parse_sib_register()?;
+        // (%rax)
+        //      ^
+        if self.consume_char(b')').is_ok() {
+            return Ok(Memory::sib(None, base, None, Scale::Byte, None));
+        }
         let has_index_comma = self.consume_char(b',').is_ok();
         self.skip_whitespace();
         if self.pos >= self.input.len() {
@@ -162,18 +177,23 @@ impl<'a> OperandParser<'a> {
                 "expected closing bracket for SIB expression",
             ));
         }
-        if self.input[self.pos] == b')' {
+
+        // (%rax, )
+        //        ^
+        if self.consume_char(b')').is_ok() {
             return Ok(Memory::sib(None, base, None, Scale::Byte, None));
         }
 
-        // missing comma
+        // Missing comma, e.g.:
+        // (%rax  %rcx)
+        //      ^
         if !has_index_comma {
             return Err(ParseError::with_context(
                 ParseErrorKind::UnexpectedChar(self.input[self.pos].into()),
                 "missing comma before index register",
             ));
         }
-        let (mut index, has_scale_comma) = if self.input[self.pos] == b'%' {
+        let (index, has_scale_comma) = if self.input[self.pos] == b'%' {
             let index = self.maybe_parse_sib_register()?;
             let has_scale_comma = self.consume_char(b',').is_ok();
             self.skip_whitespace();
@@ -181,13 +201,9 @@ impl<'a> OperandParser<'a> {
         } else {
             (None, has_index_comma)
         };
-        if index.is_none() {
-            std::mem::swap(&mut base, &mut index);
-        }
-        if self.input[self.pos] == b')' {
-            return Ok(Memory::sib(None, base, index, Scale::Byte, None));
-        }
 
+        // (%rax, %rcx,  )
+        //              ^
         let maybe_scale = self.input[self.pos];
         let scale = match maybe_scale {
             b')' => {
