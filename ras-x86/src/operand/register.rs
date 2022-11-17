@@ -33,7 +33,7 @@ pub(crate) mod reg_defs {
 
 use reg_defs::*;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Register {
     Register8Hi(RegisterNum),
     Register8Lo(RegisterNum),
@@ -118,7 +118,7 @@ impl TryFrom<&[u8]> for Register {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RegisterNum {
     Rax = 0,
     Rcx = 1,

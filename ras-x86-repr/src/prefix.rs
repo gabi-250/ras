@@ -13,7 +13,7 @@ const REX_B: u8 = 0b0000_0001;
 
 const OPERAND_SIZE_PREFIX: u8 = 0x66;
 
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Prefix {
     OperandSize,
     Rex(RexPrefix),
@@ -28,7 +28,7 @@ impl From<Prefix> for u8 {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RexPrefix {
     None,
     /// Use a 64-bit operand size instead of the default operand size (which is usually 32-bit in

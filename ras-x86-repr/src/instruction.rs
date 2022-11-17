@@ -112,7 +112,7 @@ impl InstructionEncoding {
 ///
 /// [x86-csv]: https://github.com/GregoryComer/x86-csv/tree/c638bbbaa17f0c81abaa7e84a968335c985542fa
 /// [Intel® 64 and IA-32 architectures software developer's manual volume 2]: https://software.intel.com/content/www/us/en/develop/articles/intel-sdm.html
-#[derive(Serialize, Deserialize, Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EncodingBytecode {
     Rex(RexPrefix),
     Prefix(u8),

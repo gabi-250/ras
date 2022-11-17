@@ -120,7 +120,7 @@ impl Display for ParseError {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct ParseError {
     kind: ParseErrorKind,
     ctx: String,
@@ -161,7 +161,7 @@ impl From<ParseIntError> for ParseError {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum ParseErrorKind {
     InvalidMnemonic(String),
     InvalidImmediate(String),

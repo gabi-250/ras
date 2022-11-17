@@ -3,7 +3,7 @@ use crate::operand::{Immediate, Register};
 use crate::symbol::SymbolId;
 use std::convert::TryFrom;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Memory {
     Sib {
         /// XXX
@@ -24,7 +24,7 @@ pub enum Memory {
 }
 
 /// The scale used in a SIB expression.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Scale {
     Byte = 0,
     Word = 0b01,
@@ -38,7 +38,7 @@ impl Default for Scale {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MemoryRel {
     Absolute(Immediate),
     Label(SymbolId),
@@ -82,7 +82,7 @@ impl Memory {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Moffs {
     Moffs8(u8),
     Moffs16(u16),

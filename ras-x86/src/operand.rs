@@ -8,7 +8,7 @@ pub use immediate::{Immediate, ImmediateSize};
 pub use memory::{Memory, MemoryRel, Moffs, Scale};
 pub use register::{Register, RegisterNum};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Operand {
     Register(Register),
     Immediate(Immediate),

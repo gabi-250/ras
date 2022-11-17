@@ -9,13 +9,15 @@ use std::io::Write;
 
 pub use crate::symbol::{Symbol, SymbolId, SymbolOffset, SymbolType};
 
+pub type SymbolTable = HashMap<SymbolId, Symbol>;
+
 pub struct Assembler {
     /// The instruction encoder.
     encoder: Encoder,
     /// The instructions to encode.
     items: Vec<Item>,
     /// The symbols used in the assembly program.
-    sym_tab: HashMap<SymbolId, Symbol>,
+    sym_tab: SymbolTable,
 }
 
 impl Assembler {
@@ -61,9 +63,6 @@ impl Assembler {
     fn assemble(&mut self) -> RasResult<()> {
         for item in &self.items {
             match item {
-                Item::Instruction(inst) => {
-                    inst.encode(&mut self.encoder)?;
-                }
                 Item::Label(label) => match self.sym_tab.entry(label.to_string()) {
                     Entry::Occupied(entry) if entry.get().is_defined() => {
                         return Err(RasError::DuplicateLabel(label.to_string()));
@@ -80,14 +79,25 @@ impl Assembler {
                         entry.insert(sym);
                     }
                 },
+                Item::Instruction(_) => { /* forget about instructions in the first pass */ }
             }
         }
+
+        for item in &self.items {
+            match item {
+                Item::Instruction(inst) => {
+                    inst.encode(&mut self.encoder, &self.sym_tab)?;
+                }
+                Item::Label(_) => { /* the labels were processed in the first pass */ }
+            }
+        }
+
         self.encoder.fixup_symbol_references(&self.sym_tab)?;
         Ok(())
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Item {
     Label(SymbolId),
     Instruction(Instruction),

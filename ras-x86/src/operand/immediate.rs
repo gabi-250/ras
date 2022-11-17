@@ -3,14 +3,14 @@ use crate::{RasError, RasResult};
 
 use std::convert::TryFrom;
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Immediate {
     Imm8(i8),
     Imm16(i16),
     Imm32(i32),
 }
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum ImmediateSize {
     Imm8,
     Imm16,

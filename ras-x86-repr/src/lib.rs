@@ -18,7 +18,7 @@ pub use instruction::{EncodingBytecode, InstructionEncoding, InstructionRepr};
 pub use operand::{OperandKind, OperandRepr};
 pub use prefix::{Prefix, RexPrefix};
 
-#[derive(Serialize, Deserialize, Debug, Copy, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Mode {
     /// 16-bit real mode.
     Real,

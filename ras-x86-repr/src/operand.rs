@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
 /// The internal representation of x86 instruction operand.
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OperandRepr {
     pub kind: OperandKind,
     pub size: u32,
@@ -22,7 +22,7 @@ impl OperandRepr {
 /// Summary Table` of the [Intel® 64 and IA-32 architectures software developer's manual volume 2].
 ///
 /// [Intel® 64 and IA-32 architectures software developer's manual volume 2]: https://software.intel.com/content/www/us/en/develop/articles/intel-sdm.html
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum OperandKind {
     /// reg
     Reg,

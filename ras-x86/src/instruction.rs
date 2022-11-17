@@ -1,3 +1,4 @@
+use crate::assembler::SymbolTable;
 use crate::encoder::Encoder;
 use crate::mnemonic::Mnemonic;
 use crate::operand::Operand;
@@ -20,7 +21,7 @@ lazy_static! {
     };
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Instruction {
     mnemonic: Mnemonic,
     operands: Vec<Operand>,
@@ -32,7 +33,7 @@ impl Instruction {
         Self { mnemonic, operands }
     }
 
-    pub(crate) fn encode(&self, enc: &mut Encoder) -> RasResult<()> {
+    pub(crate) fn encode(&self, enc: &mut Encoder, _sym_tab: &SymbolTable) -> RasResult<()> {
         let variants = (*INSTR_REPRS).get(&self.mnemonic).unwrap();
         // Find the best instruction encoding (always choose the encoding with the smallest operand
         // sizes).
@@ -43,6 +44,7 @@ impl Instruction {
         // Sort the instructions by their estimated encoding length:
         instructions.sort();
         // Pick the best encoding:
+        // TODO: use sym_tab to determine the operand size for relative offset operands
         let shortest_repr = instructions
             .first()
             .ok_or(RasError::MissingInstructionRepr(self.mnemonic))?;
@@ -73,7 +75,7 @@ pub mod tests {
             Instruction::new(
                 Mnemonic::$opcode,
                 vec![$($operands,)*]
-            ).encode(&mut enc).unwrap();
+            ).encode(&mut enc, &Default::default()).unwrap();
 
             enc.out
         }}
