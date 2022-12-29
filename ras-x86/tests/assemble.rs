@@ -15,30 +15,36 @@ fn compare_text_section_with_gas() {
     for path in fs::read_dir(test_dir).unwrap() {
         let path = path.unwrap().path();
         let test_file = path.file_name().unwrap().to_str().unwrap();
-        if test_file.starts_with(".") {
+
+        if test_file.starts_with('.') {
             continue;
         }
+
         let asm_src = fs::read_to_string(&path).unwrap();
         let mut out = vec![];
+
         Assembler::long_mode()
             .items(parse_asm(&asm_src).unwrap())
             .write_obj(&mut out)
             .unwrap();
+
         let status = Command::new("as")
             .args(["-o", RAS_TEST_OBJ, path.to_str().unwrap()])
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .status()
-            .expect(&format!(
-                "failed to assemble {} with as",
-                path.to_str().unwrap()
-            ));
+            .unwrap_or_else(|e| {
+                panic!("failed to assemble {} with as: {e}", path.to_str().unwrap())
+            });
+
         if !status.success() {
             panic!("failed to assemble {} with as", path.to_str().unwrap());
         }
+
         let expected = fs::read(RAS_TEST_OBJ).unwrap();
         let expected_text = read_text_section(&expected);
         let actual_text = read_text_section(&out);
+
         assert_eq!(
             actual_text, expected_text,
             "incorrect .text section for \"{}\"",
@@ -59,5 +65,6 @@ fn read_text_section(input: &[u8]) -> &[u8] {
                 == ".text"
         })
         .expect("object file does not have a .text section");
+
     &input[text_section.file_range().unwrap()]
 }

@@ -18,6 +18,7 @@ pub use repr::Mode;
 pub type RasResult<T> = Result<T, RasError>;
 pub type ParseResult<T> = Result<T, ParseError>;
 
+#[allow(clippy::unusual_byte_groupings)]
 #[cfg(test)]
 mod tests {
     use crate::assembler::{Assembler, Item};
