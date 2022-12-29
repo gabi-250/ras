@@ -18,7 +18,7 @@ use quote::quote;
 use ras_x86_repr::{InstructionRepr, Mode};
 
 const INST_CSV: &str = "./x86-csv/x86.csv";
-const INST_MAP: &str = "bin/map";
+const INST_MAP: &str = "inst_map.json";
 const RUSTFMT_BIN: &str = "rustfmt";
 
 fn main() -> ParseResult<()> {
@@ -63,7 +63,7 @@ fn main() -> ParseResult<()> {
     insts.sort_by_key(|inst| inst.0.clone());
 
     let inst_map = Path::new(env!("CARGO_MANIFEST_DIR")).join(INST_MAP);
-    fs::write(inst_map, bincode::serialize(&insts).unwrap()).unwrap();
+    fs::write(inst_map, serde_json::to_string_pretty(&insts).unwrap()).unwrap();
 
     generate_mnemonic_enum(mnemonics);
 
