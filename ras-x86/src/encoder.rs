@@ -76,6 +76,7 @@ impl Encoder {
                         let end = (fixup.offset + fixup.size) as usize;
                         let offset =
                             (offset as i32 - (fixup.offset + fixup.size) as i32).to_le_bytes();
+
                         self.out.splice(start..end, offset.iter().cloned());
                     }
                 }
@@ -126,8 +127,11 @@ impl Encoder {
             Operand::Memory(_) => (None, Some(operand), None),
             Operand::Immediate(imm) => (None, None, Some(imm)),
         };
+
+        let mut enc = InstructionEncoder::from(self);
+
         for code in &inst_repr.encoding.bytecode {
-            self.handle_opcode(
+            enc.handle_opcode(
                 code,
                 inst_repr,
                 reg_op,
@@ -136,6 +140,7 @@ impl Encoder {
                 operand.size(),
             )?;
         }
+
         Ok(())
     }
 
@@ -153,6 +158,7 @@ impl Encoder {
         } else {
             std::cmp::max(op1.size(), op2.size())
         };
+
         let (reg_op, reg_memory_op, imm_op) = match (op2, op1) {
             (Operand::Register(reg), Operand::Memory(_)) => (Some(reg), Some(op1), None),
             (Operand::Register(reg), Operand::Register(_)) => (Some(reg), Some(op1), None),
@@ -166,12 +172,33 @@ impl Encoder {
                 "instruction repr has ModRM byte but none of the operands are register/memory"
             ),
         };
+
+        let mut enc = InstructionEncoder::from(self);
+
         for code in &inst_repr.encoding.bytecode {
-            self.handle_opcode(code, inst_repr, reg_op, reg_memory_op, imm_op, op_size)?;
+            enc.handle_opcode(code, inst_repr, reg_op, reg_memory_op, imm_op, op_size)?;
         }
+
         Ok(())
     }
+}
 
+pub(crate) struct InstructionEncoder<'a> {
+    enc: &'a mut Encoder,
+    /// Whether the operand-size prefix was added to the output buffer.
+    has_operand_size_prefix: bool,
+}
+
+impl<'a> From<&'a mut Encoder> for InstructionEncoder<'a> {
+    fn from(enc: &'a mut Encoder) -> Self {
+        Self {
+            enc,
+            has_operand_size_prefix: false,
+        }
+    }
+}
+
+impl<'a> InstructionEncoder<'a> {
     fn handle_opcode(
         &mut self,
         code: &EncodingBytecode,
@@ -182,19 +209,19 @@ impl Encoder {
         op_size: u32,
     ) -> Result<(), RasError> {
         match code {
-            EncodingBytecode::Rex(rex_prefix) => self.out.push((*rex_prefix).into()),
-            EncodingBytecode::Prefix(prefix) => self.out.push(*prefix),
+            EncodingBytecode::Rex(rex_prefix) => self.enc.out.push((*rex_prefix).into()),
+            EncodingBytecode::Prefix(prefix) => self.enc.out.push(*prefix),
             EncodingBytecode::Opcode(opcode) => {
                 if self.needs_operand_size_prefix(inst_repr, op_size) {
-                    self.out.push(Prefix::OperandSize.into());
+                    self.encode_operand_size_prefix();
                 }
-                self.out.push(*opcode)
+                self.enc.out.push(*opcode)
             }
             EncodingBytecode::OpcodeRw(opcode)
             | EncodingBytecode::OpcodeRb(opcode)
             | EncodingBytecode::OpcodeRd(opcode) => {
                 if self.needs_operand_size_prefix(inst_repr, op_size) {
-                    self.out.push(Prefix::OperandSize.into());
+                    self.encode_operand_size_prefix();
                 }
                 match reg_op {
                     Some(reg_op) => self.encode_reg_in_opcode(*opcode, reg_op),
@@ -236,6 +263,7 @@ impl Encoder {
             }
             _ => unimplemented!("encoding: {:?}", code),
         }
+
         Ok(())
     }
 
@@ -277,21 +305,25 @@ impl Encoder {
             };
 
             let sib = maybe_sib(base.as_ref(), index.as_ref(), *scale, modifier)?;
+
             let rm = if sib.is_some() {
                 0b100
             } else {
                 base.map(|base| *base as u8).unwrap_or(0)
             };
-            self.out.push(modrm(modifier, modrm_reg, rm));
+
+            self.enc.out.push(modrm(modifier, modrm_reg, rm));
+
             if let Some(sib) = sib {
-                self.out.push(sib);
+                self.enc.out.push(sib);
             }
+
             // Encode the displacement if needed
             if let Some(displacement) = displacement {
-                self.out.extend(displacement);
+                self.enc.out.extend(displacement);
             }
         } else {
-            self.out.push(modrm(0b11, modrm_reg, rm))
+            self.enc.out.push(modrm(0b11, modrm_reg, rm))
         }
         Ok(())
     }
@@ -302,18 +334,25 @@ impl Encoder {
             MemoryRel::Label(symbol_id) => {
                 let size = (operand_repr.size() / 8) as usize;
                 let fixup = Fixup {
-                    offset: self.current_offset(),
+                    offset: self.enc.current_offset(),
                     size: size as u64,
                 };
+
                 // Store some zeroes...
-                self.out.extend(vec![0; size]);
+                self.enc.out.extend(vec![0; size]);
                 // ...and remember that we need to fix-up this location when we resolve the label:
-                self.rel_jmp_fixups
+                self.enc
+                    .rel_jmp_fixups
                     .entry(symbol_id.to_string())
                     .or_default()
                     .push(fixup);
             }
         }
+    }
+
+    fn encode_operand_size_prefix(&mut self) {
+        self.enc.out.push(Prefix::OperandSize.into());
+        self.has_operand_size_prefix = true;
     }
 
     /// Check if the current instruction needs an operand-size prefix.
@@ -328,6 +367,11 @@ impl Encoder {
     /// Operand-Size Prefix     |N  |N  |Y  |Y  |N  |N  |Y  |Y
     /// Effective Operand Size  |32 |32 |16 |16 |64 |64 |64 |64
     fn needs_operand_size_prefix(&mut self, inst_repr: &InstructionRepr, size: u32) -> bool {
+        // There's no need to add the operand-size prefix more than once.
+        if self.has_operand_size_prefix {
+            return false;
+        }
+
         // The REX.W prefix takes precedence over the operand-size prefix, so if the instruction
         // already has a REX.W prefix, there's no need to add the operand-size prefix.
         if inst_repr
@@ -339,7 +383,8 @@ impl Encoder {
         {
             return false;
         }
-        match self.mode {
+
+        match self.enc.mode {
             Mode::Long => size == 16,
             mode => unimplemented!("mode={:?}", mode),
         }
@@ -355,16 +400,17 @@ impl Encoder {
         // XXX: MOV r64, imm64 supports 64-bit immediates
         // Can't use more than 32 bits for the immediate.
         match imm {
-            Immediate::Imm8(imm) => self.out.extend(imm.to_le_bytes().to_vec()),
-            Immediate::Imm16(imm) => self.out.extend(imm.to_le_bytes().to_vec()),
-            Immediate::Imm32(imm) => self.out.extend(imm.to_le_bytes().to_vec()),
+            Immediate::Imm8(imm) => self.enc.out.extend(imm.to_le_bytes().to_vec()),
+            Immediate::Imm16(imm) => self.enc.out.extend(imm.to_le_bytes().to_vec()),
+            Immediate::Imm32(imm) => self.enc.out.extend(imm.to_le_bytes().to_vec()),
         }
     }
 
     /// Encode the register number the least significant 3 bits of the opcode byte.
     fn encode_reg_in_opcode(&mut self, opcode: u8, reg: &Register) {
         let opcode = opcode + (0b00000111 & **reg as u8);
-        self.out.push(opcode);
+
+        self.enc.out.push(opcode);
     }
 }
 

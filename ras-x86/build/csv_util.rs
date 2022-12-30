@@ -5,6 +5,10 @@ macro_rules! get_header {
     };
 }
 
+pub fn is_valid_mode(mode_rec: &str) -> bool {
+    mode_rec == "Valid"
+}
+
 #[allow(unused)]
 #[repr(u8)]
 pub enum CsvHeader {

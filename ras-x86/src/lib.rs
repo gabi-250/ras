@@ -52,7 +52,9 @@ mod tests {
 
     #[test]
     fn multi_byte_nop() {
-        // TODO
+        assert_encoding_eq!([0x66, 0x0f, 0x1f, 0xc0], i!(NOP, reg!(AX)));
+        assert_encoding_eq!([0x0f, 0x1f, 0xc0], i!(NOP, reg!(EAX)));
+        // TODO: other multi-byte sequences
     }
 
     #[test]

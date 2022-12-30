@@ -3,7 +3,7 @@ mod instruction;
 mod opcode;
 mod parsers;
 
-use csv_util::CsvHeader;
+use csv_util::{is_valid_mode, CsvHeader};
 use instruction::parse_instruction_column;
 use opcode::parse_opcode_column;
 use parsers::ParseResult;
@@ -111,8 +111,4 @@ fn generate_mnemonic_enum(mnemonics: HashSet<String>) {
         .arg(mnemonic_file)
         .spawn()
         .expect("failed to run rustfmt");
-}
-
-pub fn is_valid_mode(mode_rec: &str) -> bool {
-    mode_rec == "Valid"
 }

@@ -57,8 +57,7 @@ impl Instruction {
             .first()
             .ok_or(RasError::MissingInstructionRepr(self.mnemonic))?;
 
-        enc.encode(shortest_repr, &self.operands)?;
-        Ok(())
+        enc.encode(shortest_repr, &self.operands)
     }
 
     /// Check if the operands of this instruction can be encoded by the specified `InstructionRepr`.
